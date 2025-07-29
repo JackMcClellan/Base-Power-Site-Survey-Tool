@@ -1,0 +1,39 @@
+'use client'
+
+import React from 'react'
+import { useAtomValue } from 'jotai'
+import { Badge } from '@/components/ui/badge'
+import { surveyProgressAtom } from '@/atoms/survey'
+
+interface SurveyHeaderProps {
+  showStepNumber?: boolean
+}
+
+export function SurveyHeader({ showStepNumber = true }: SurveyHeaderProps) {
+  const progress = useAtomValue(surveyProgressAtom)
+
+  return (
+    <header 
+      className="bg-card text-foreground border-b border-border"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
+      <div className="px-6 py-4">
+        <div className="flex items-center justify-between">
+          {/* Logo */}
+          <div className="flex items-center">
+            <h1 className="text-xl font-semibold">
+              Base Power Survey
+            </h1>
+          </div>
+          
+          {/* Step Number */}
+          {showStepNumber && (
+            <Badge variant="secondary">
+              Step {progress.current} of {progress.total}
+            </Badge>
+          )}
+        </div>
+      </div>
+    </header>
+  )
+} 

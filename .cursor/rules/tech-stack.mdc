@@ -561,7 +561,7 @@ src/
 
 ## Rules Summary
 
-### ✅ Always Do:
+### Always Do:
 - Use React Hook Form + Zod for all forms
 - Use Jotai for global state management
 - Use ShadCN UI components as building blocks

@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useRef, useEffect, useCallback, useMemo } from 'react'
-import { useAtom, useAtomValue } from 'jotai'
+import React, { useRef, useEffect, useCallback } from 'react'
+import { useAtom } from 'jotai'
 import { useCamera } from '@/hooks/use-camera'
 import { cameraDimensionsAtom } from '@/atoms/camera'
 import { CameraMessage } from '@/components/camera-message'
+import { CameraHttpsWarning } from '@/components/camera-https-warning'
 
 interface AROverlay {
   id: string
@@ -24,8 +25,8 @@ export function CameraView({ overlays = [], onCameraReady, className = '' }: Cam
   const overlaysRef = useRef<AROverlay[]>(overlays)
   const isInitialized = useRef(false)
 
-  const { cameraStream, isCameraAvailable, requestCameraAccess } = useCamera()
-  const [dimensions, setDimensions] = useAtom(cameraDimensionsAtom)
+  const { cameraStream, isCameraAvailable, cameraStatus, requestCameraAccess } = useCamera()
+  const [, setDimensions] = useAtom(cameraDimensionsAtom)
 
   // Update overlays ref when overlays prop changes
   useEffect(() => {
@@ -58,12 +59,12 @@ export function CameraView({ overlays = [], onCameraReady, className = '' }: Cam
       const rectX = (canvas.width / 2) - (rectSize / 2)
       const rectY = (canvas.height / 2) - (rectSize / 2)
 
-      ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)' // Red, semi-transparent
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)' // Using destructive color with opacity
       ctx.lineWidth = 4
       ctx.strokeRect(rectX, rectY, rectSize, rectSize)
 
       // Example 2: Text overlay
-      ctx.fillStyle = 'rgba(0, 255, 0, 0.8)' // Green, semi-transparent
+      ctx.fillStyle = 'rgba(208, 245, 133, 0.8)' // Using primary color (light green) with opacity
       ctx.font = '30px system-ui'
       ctx.textAlign = 'center'
       ctx.fillText('AR Overlay Active!', canvas.width / 2, canvas.height / 4)
@@ -74,7 +75,7 @@ export function CameraView({ overlays = [], onCameraReady, className = '' }: Cam
       const circleY = canvas.height - 100
       ctx.beginPath()
       ctx.arc(circleX, circleY, circleRadius, 0, Math.PI * 2)
-      ctx.fillStyle = 'rgba(0, 0, 255, 0.7)' // Blue, semi-transparent
+      ctx.fillStyle = 'rgba(8, 77, 65, 0.7)' // Using primary-foreground (dark green) with opacity
       ctx.fill()
       ctx.closePath()
     } else {
@@ -172,12 +173,25 @@ export function CameraView({ overlays = [], onCameraReady, className = '' }: Cam
   // Auto-request camera access when component mounts
   useEffect(() => {
     if (!isCameraAvailable) {
-      requestCameraAccess()
+      // Add a small delay for mobile devices to ensure proper initialization
+      const timer = setTimeout(() => {
+        requestCameraAccess()
+      }, 100)
+      
+      return () => clearTimeout(timer)
     }
-  }, []) // Only run once on mount
+  }, [isCameraAvailable, requestCameraAccess])
+
+  // Show HTTPS warning if camera access failed due to protocol issues
+  if (cameraStatus === 'error' && typeof window !== 'undefined' && 
+      window.location.protocol !== 'https:' && 
+      window.location.hostname !== 'localhost' && 
+      window.location.hostname !== '127.0.0.1') {
+    return <CameraHttpsWarning onRetry={requestCameraAccess} />
+  }
 
   return (
-    <div className={`relative w-full h-full overflow-hidden bg-gray-900 ${className}`}>
+    <div className={`relative w-full h-full overflow-hidden bg-background ${className}`}>
       {/* Video element to display camera feed */}
       <video
         ref={videoRef}
@@ -185,6 +199,11 @@ export function CameraView({ overlays = [], onCameraReady, className = '' }: Cam
         playsInline
         muted
         className="absolute inset-0 w-full h-full object-cover z-10"
+        style={{
+          // Ensure proper mobile video rendering
+          WebkitTransform: 'translateZ(0)',
+          transform: 'translateZ(0)',
+        }}
       />
 
       {/* Canvas element for AR overlays */}

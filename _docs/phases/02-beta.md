@@ -4,9 +4,12 @@
 Transform the MVP into a functional home energy survey tool with real-world energy assessment capabilities. Focus on actual electrical panel analysis, space measurements, and preliminary energy recommendations.
 
 ## Prerequisites
-- All Phase 1 (MVP) features completed and tested
-- Stable object detection and AR overlay system
-- Basic survey flow validated by initial users
+- **Foundation Systems**: Camera access, AR overlays, and state management 
+-  **Phase 1 (MVP) features**: Survey flow, object detection, and data management (IN PROGRESS)
+-  **Validation**: Basic survey flow tested and validated by initial users
+-  **AI/ML Integration**: Stable object detection system working reliably
+
+**Note**: Phase 2 development can begin in parallel with Phase 1 completion, focusing on advanced features that build upon the solid foundation already established.
 
 ## Core Features
 
@@ -34,8 +37,8 @@ Transform the MVP into a functional home energy survey tool with real-world ener
   - Battery and inverter identification
   - HVAC system detection for load analysis
   - Solar panel and equipment recognition
-- [ ] **Improved AR Overlays**
-  - Distance and dimension overlays
+- [ ] **Improved AR Overlays** *(Building on existing AR framework)*
+  - Distance and dimension overlays (extending current overlay system)
   - Safety zone indicators
   - Installation requirement visualizations
   - Code compliance indicators

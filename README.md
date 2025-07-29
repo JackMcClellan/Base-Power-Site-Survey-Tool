@@ -1,66 +1,70 @@
-# Gauntlet AI - Energy Survey Tool
+# Base Power Site Survey Tool
 
-A mobile-first web application for conducting AR + AI powered home energy site surveys, built with Next.js, React, and TypeScript.
+Electricity Meter Capture Interface - An advanced mobile-first web application for capturing and analyzing electricity meter installations using AI-powered computer vision.
 
-## 🎯 Current Implementation Status
+## Current Implementation Status
 
-### ✅ **FULLY IMPLEMENTED - Camera & Computer Vision**
+Built with **Next.js 15**, **TypeScript**, and the latest browser APIs for camera and AR functionality. The app features real-time meter detection and validation to ensure high-quality data capture for site surveys.
 
-The application now features a **complete full-screen camera experience** with integrated AI:
+### Completed Features
 
-#### **📱 Full-Screen Camera Interface**
-- Camera takes up entire viewport (except header)
-- Floating UI controls overlaid on camera feed
-- Mobile-optimized touch interface
-- Real-time video processing
+#### **Full-Screen Camera Interface**
+- Native camera API integration with fallback support
+- Mobile-optimized viewport with proper scaling
+- Cross-browser compatibility (Safari, Chrome, Firefox)
+- HTTPS requirement detection with user guidance
 
-#### **🤖 AI-Powered Detection**
-- **Object Detection**: TensorFlow.js + COCO-SSD model
-- **Text Recognition**: Tesseract.js OCR processing  
-- **AR Overlays**: Three.js rendering system
-- **Real-time Processing**: Live detection with confidence scores
+#### **AI-Powered Detection**  
+- Real-time electricity meter detection using computer vision
+- Validation framework with multiple quality checks
+- Guided capture with visual frame overlay
+- Image quality assessment (focus, lighting, angle)
 
-#### **🔮 AR Features**
-- Dynamic arrows pointing to detected objects
-- Bounding boxes around targets
-- Text labels with detection info
-- Mobile-optimized 3D rendering
+#### **AR Features**
+- Real-time overlay rendering on camera feed
+- Dynamic guiding frames for optimal meter positioning  
+- Visual feedback during capture process
+- Smooth 60fps performance on mobile devices
 
-#### **📊 Data Collection**
-- Automatic detection data capture
-- Image capture and storage
-- Measurement recording (simulated)
-- Complete survey data review
+#### **Data Collection**
+- Multi-step survey flow with state management
+- Captured image storage and validation
+- Progress tracking with visual indicators
+- Retry mechanism with user guidance
 
-## 🚀 Live Demo Flow
+## Live Demo Flow
 
-1. **Welcome Step** - Camera permission and device check
-2. **Find Computer** - Real object detection for computers/laptops
-3. **Find Bottle** - Real object detection for bottles/containers  
-4. **Scan Text** - OCR text recognition from captured images
-5. **Measure Space** - AR measurement tools (demo mode)
-6. **Review** - Complete data review before submission
+1. **Welcome Screen** - Overview of survey steps
+2. **Meter Capture** - Full-screen camera with AR guide frame
+3. **Validation** - Real-time analysis with retry options
+4. **Review** - Summary of captured data
 
-## 🛠 Tech Stack
+The app automatically handles camera permissions, provides HTTPS warnings, and adapts to different device capabilities.
 
-### **Core Framework**
-- **Next.js 15** with App Router
+## Tech Stack
+
+### Core Technologies
+- **Next.js 15.0.3** with App Router and TurboPack
 - **TypeScript** for type safety
-- **Tailwind CSS** for styling
-- **ShadCN UI** component library
+- **Tailwind CSS** for responsive styling
+- **Jotai** for state management
+- **React Hook Form** with Zod validation
 
-### **AI & Computer Vision**
-- **TensorFlow.js** + COCO-SSD for object detection
-- **Tesseract.js** for OCR text recognition
-- **Three.js** for AR overlay rendering
-- **MediaDevices API** for camera access
+### UI/UX
+- **Radix UI** primitives via shadcn/ui
+- **Mobile-first responsive design**
+- **AR overlays** using Canvas API
+- **Real-time visual feedback**
 
-### **State Management**
-- **Jotai** for reactive state
-- **Local Storage** for data persistence
-- **React Hook Form + Zod** (ready for forms)
+### Development
+- **ESLint** with modern flat config
+- **PostCSS** with custom theme system
+- **Environment-based configuration**
+- **Git-based version control**
 
-## 📱 Mobile-First Design
+## Mobile-First Design
+
+The interface is optimized for mobile devices with full viewport utilization:
 
 ```
 ┌─────────────────────────┐
@@ -73,178 +77,130 @@ The application now features a **complete full-screen camera experience** with i
 │  [Controls] [Status]    │ ← Floating UI elements
 │                         │
 │  ┌─────────────────┐    │ ← Step instructions overlay
-│  │ Instructions    │    │
-│  │ & Results       │    │
+│  │  Meter Guide    │    │
+│  │    Frame        │    │
 │  └─────────────────┘    │
-│     [📷] [➡️]            │ ← Action buttons
+│                         │
+│  [Capture] [Skip]       │ ← Action buttons
 └─────────────────────────┘
 ```
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
-- Node.js 18+
-- Modern mobile browser (iOS Safari, Android Chrome)
-- Camera-enabled device
+- Node.js 18+ and npm
+- HTTPS environment (required for camera access on mobile)
+- Modern browser with camera API support
 
 ### Installation
+
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd Base-Power-Site-Survey-Tool
+git clone https://github.com/yourusername/base-power-site-survey-tool.git
+cd base-power-site-survey-tool
 
 # Install dependencies
 npm install
 
-# Start development server
+# Run development server
 npm run dev
 ```
 
-### Testing on Mobile
-1. Start dev server: `npm run dev`
-2. Find your local IP: `ipconfig` or `ifconfig`
-3. Access `http://your-ip:3000` from mobile device
-4. **Grant camera permissions** when prompted
-5. Test the full survey flow
+### HTTPS Setup for Mobile Testing
 
-### Production Build
-```bash
-npm run build
-npm start
-```
+Camera access on mobile devices requires HTTPS. Options:
 
-## 📊 Real Detection Examples
+1. **Local Development with ngrok**
+   ```bash
+   # Install ngrok
+   npm install -g ngrok
+   
+   # Start Next.js
+   npm run dev
+   
+   # In another terminal, create HTTPS tunnel
+   ngrok http 3000
+   ```
 
-### **Object Detection Results**
-```json
-{
-  "detectedObjects": [
-    {
-      "class": "laptop",
-      "confidence": 0.89,
-      "bbox": [100, 150, 300, 200]
-    }
-  ]
-}
-```
+2. **Local HTTPS with mkcert**
+   ```bash
+   # Install mkcert
+   brew install mkcert  # macOS
+   
+   # Create local CA
+   mkcert -install
+   
+   # Generate certificates
+   mkcert localhost
+   ```
 
-### **Text Recognition Results**
-```json
-{
-  "detectedText": [
-    {
-      "text": "Energy Rating: A+",
-      "confidence": 0.94,
-      "bbox": { "x": 50, "y": 100, "width": 200, "height": 30 }
-    }
-  ]
-}
-```
+3. **Deploy to Vercel** (Automatic HTTPS)
+   ```bash
+   npm install -g vercel
+   vercel
+   ```
 
-## 🔧 Configuration
-
-Survey steps are fully configurable via `lib/survey-config.json`:
-
-```json
-{
-  "id": "find-computer",
-  "title": "Find a Computer",
-  "requiresCamera": true,
-  "arFeatures": [
-    {
-      "type": "arrow",
-      "color": "#00ff00",
-      "label": "Computer Detected!"
-    }
-  ],
-  "visionFeatures": [
-    {
-      "model": "coco-ssd",
-      "targetObjects": ["laptop", "computer", "monitor"],
-      "confidence": 0.6
-    }
-  ]
-}
-```
-
-## 📁 Project Structure
+## Project Structure
 
 ```
-├── components/
-│   ├── survey/
-│   │   ├── CameraView.tsx          # 📹 Shared full-screen camera
-│   │   ├── SurveyContainer.tsx     # 📋 Main survey orchestrator
-│   │   └── steps/                  # 🔧 Individual step components
-│   │       ├── FindComputerStep.tsx
-│   │       ├── FindBottleStep.tsx
-│   │       ├── ScanTextStep.tsx
-│   │       ├── MeasureSpaceStep.tsx
-│   │       └── ReviewStep.tsx
-│   └── ui/                         # 🎨 ShadCN UI components
-├── lib/
-│   ├── survey-config.json          # ⚙️ Step configuration
-│   ├── camera-utils.ts             # 📹 Camera management
-│   ├── object-detection.ts         # 🤖 TensorFlow.js integration
-│   ├── text-recognition.ts         # 📝 Tesseract.js OCR
-│   ├── ar-overlay.ts               # 🔮 Three.js AR system
-│   └── survey-types.ts             # 📊 TypeScript definitions
-├── atoms/
-│   └── survey.ts                   # 🔄 Jotai state management
-└── _docs/                          # 📚 Documentation
-    ├── CAMERA_IMPLEMENTATION.md
-    └── vision_systems.md
+├── app/                    # Next.js app directory
+│   ├── api/               # API routes
+│   ├── layout.tsx         # Root layout
+│   └── page.tsx           # Home page
+├── components/            # React components
+│   ├── camera-view.tsx    # Main camera component
+│   ├── steps/             # Survey step components
+│   ├── shared/            # Shared UI components
+│   └── ui/                # shadcn/ui components
+├── hooks/                 # Custom React hooks
+│   └── use-camera.ts      # Camera management hook
+├── lib/                   # Utility functions
+│   ├── ar-overlays.ts     # AR overlay system
+│   └── meter-detection.ts # Computer vision logic
+└── atoms/                 # Jotai state atoms
+    ├── camera.ts          # Camera state
+    └── survey.ts          # Survey flow state
 ```
 
-## 🎯 Real-World Energy Survey Adaptation
+## Key Features Implementation
 
-To adapt this for actual energy surveys:
+### Camera Integration
+The app uses the MediaDevices API with progressive enhancement:
+- Primary: Modern `getUserMedia` API
+- Fallback: Legacy APIs for older browsers
+- Error handling with user-friendly messages
+- Automatic camera selection (rear camera preferred)
 
-### **Custom Object Detection**
-- Train models for electrical panels, HVAC systems, solar panels
-- Add energy equipment classification
-- Implement safety hazard detection
+### AR Overlay System
+Real-time overlays are rendered using Canvas API:
+- 60fps rendering loop
+- Dynamic positioning based on viewport
+- Customizable overlay components
+- Performance optimized for mobile
 
-### **Enhanced Measurements**
-- Integrate WebXR for real distance measurement
-- Add angle and area calculations
-- GPS coordinates for outdoor equipment
+### State Management
+Jotai atoms provide reactive state management:
+- Camera state (stream, status, captured images)
+- Survey flow state (current step, captured data)
+- Persistent storage for survey progress
+- Type-safe state updates
 
-### **Professional Features**
-- PDF report generation
-- Backend integration with Base Power systems
-- Offline operation in remote locations
-- Professional data validation
+## Browser Support
 
-## 🧪 Testing & Quality
+- **iOS**: Safari 14.5+ (iOS 14.5+)
+- **Android**: Chrome 88+, Firefox 88+
+- **Desktop**: Chrome, Firefox, Safari, Edge (latest versions)
 
-- ✅ **TypeScript**: Full type safety
-- ✅ **Build**: Successful production builds
-- ✅ **Mobile**: Tested on iOS and Android
-- ✅ **Camera**: Real device camera integration
-- ✅ **AI Models**: Live object detection and OCR
-- ✅ **Performance**: Optimized for mobile devices
+Note: Camera access requires HTTPS on all mobile browsers.
 
-## 📈 Performance Metrics
+## Contributing
 
-- **Bundle Size**: ~570kB (includes AI models)
-- **Camera Latency**: <100ms initialization
-- **Detection Speed**: 500ms intervals for objects, 2s for OCR
-- **Memory Usage**: Optimized with proper cleanup
-- **Mobile Performance**: Smooth 30fps camera feed
+Please read our contributing guidelines before submitting PRs.
 
-## 🤝 Contributing
+## License
 
-The application is built with a modular architecture:
-
-1. **Add New Steps**: Update `survey-config.json` and create step component
-2. **Custom AI Models**: Extend detection managers in `/lib`
-3. **UI Components**: Use ShadCN patterns in `/components/ui`
-4. **AR Features**: Extend overlay system in `ar-overlay.ts`
-
-## 📄 License
-
-Built for Base Power Company's Gauntlet AI energy survey tool.
+This project is proprietary software. All rights reserved.
 
 ---
 
-**🚀 Ready to use! The camera and computer vision implementation is complete and fully functional.**
+Built with modern web technologies for the best mobile experience.

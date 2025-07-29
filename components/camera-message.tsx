@@ -20,7 +20,7 @@ export function CameraMessage() {
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button onClick={hideMessage} className="w-full">
+          <Button onClick={hideMessage} variant="default" className="w-full">
             OK
           </Button>
         </DialogFooter>

@@ -45,71 +45,104 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  
+  /* Base Power Brand Colors - HEX FORMAT */
+  
+  /* Backgrounds */
+  --background: #f0eeeb; /* Light Gray - gray-5 */
+  --foreground: #292826; /* Coal Grey */
+  --card: #ffffff;
+  --card-foreground: #292826;
+  --popover: #ffffff;
+  --popover-foreground: #292826;
+  
+  /* Primary Button - Light Green background with Dark Green text */
+  --primary: #d0f585; /* Light Green */
+  --primary-foreground: #084d41; /* Dark Green */
+  
+  /* Secondary Button - Dark Green background with White text */
+  --secondary: #084d41; /* Dark Green */
+  --secondary-foreground: #ffffff; /* White */
+  
+  /* Accent - Light Gray background with Dark Green text */
+  --accent: #f0eeeb; /* Light Gray */
+  --accent-foreground: #084d41; /* Dark Green */
+  
+  /* Muted - Light Gray */
+  --muted: #f0eeeb; /* Light Gray */
+  --muted-foreground: #6b6b6b; /* Medium Gray */
+  
+  /* System Colors */
+  --destructive: #ef4444;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #084d41; /* Dark Green for focus rings */
+  
+  /* Charts using brand colors */
+  --chart-1: #084d41; /* Primary Dark Green */
+  --chart-2: #d0f585; /* Light Green */
+  --chart-3: #292826; /* Coal Grey */
+  --chart-4: #a8d866; /* Medium Green */
+  --chart-5: #5a9f63; /* Medium Dark Green */
+  
+  /* Sidebar */
+  --sidebar: #f0eeeb; /* Light Gray */
+  --sidebar-foreground: #292826; /* Coal Grey */
+  --sidebar-primary: #084d41; /* Dark Green */
+  --sidebar-primary-foreground: #ffffff; /* White */
+  --sidebar-accent: #d0f585; /* Light Green */
+  --sidebar-accent-foreground: #084d41; /* Dark Green */
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #084d41; /* Dark Green */
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Dark theme using coal grey as background */
+  --background: #292826; /* Coal Grey - keeping dark for dark theme */
+  --foreground: #f0eeeb; /* Light Gray */
+  --card: #3a3a37; /* Slightly lighter than background */
+  --card-foreground: #f0eeeb;
+  --popover: #3a3a37;
+  --popover-foreground: #f0eeeb;
+  
+  /* Primary Button - Same Light Green background with Dark Green text for consistency */
+  --primary: #d0f585; /* Light Green */
+  --primary-foreground: #084d41; /* Dark Green */
+  
+  /* Secondary Button - Dark Green with Light text */
+  --secondary: #084d41; /* Dark Green */
+  --secondary-foreground: #f0eeeb; /* Light Gray */
+  
+  /* Accent - Darker background with Light Green text */
+  --accent: #3a3a37; /* Darker background */
+  --accent-foreground: #d0f585; /* Light Green */
+  
+  /* Muted */
+  --muted: #3a3a37;
+  --muted-foreground: #a0a0a0;
+  
+  /* System Colors */
+  --destructive: #f87171;
+  --border: #525252;
+  --input: #525252;
+  --ring: #d0f585; /* Light Green for focus rings in dark mode */
+  
+  /* Dark theme charts */
+  --chart-1: #d0f585; /* Light Green */
+  --chart-2: #084d41; /* Dark Green */
+  --chart-3: #a8d866; /* Medium Green */
+  --chart-4: #5a9f63; /* Medium Dark Green */
+  --chart-5: #c5f066; /* Lighter Green */
+  
+  /* Dark sidebar */
+  --sidebar: #3a3a37;
+  --sidebar-foreground: #f0eeeb;
+  --sidebar-primary: #d0f585; /* Light Green */
+  --sidebar-primary-foreground: #084d41; /* Dark Green */
+  --sidebar-accent: #084d41; /* Dark Green */
+  --sidebar-accent-foreground: #d0f585; /* Light Green */
+  --sidebar-border: #525252;
+  --sidebar-ring: #d0f585; /* Light Green */
 }
 
 @layer base {

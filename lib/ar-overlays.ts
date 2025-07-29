@@ -53,7 +53,7 @@ export function createMeasurementOverlay(
 ): AROverlay {
   return {
     id: 'measurements',
-    render: (ctx, canvas) => {
+    render: (ctx, _canvas) => {
       ctx.strokeStyle = color
       ctx.fillStyle = color
       ctx.lineWidth = 2
