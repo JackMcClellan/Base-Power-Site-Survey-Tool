@@ -571,7 +571,7 @@ src/
 - Use Next.js built-in data fetching for Next.js apps
 - Create custom hooks for reusable logic
 
-### ❌ Never Do:
+###  Never Do:
 - Use uncontrolled forms for complex forms
 - Store form state in Jotai atoms
 - Modify ShadCN components directly
