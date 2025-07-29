@@ -2,23 +2,34 @@
 
 import React from 'react'
 import { useAtomValue } from 'jotai'
-import { currentStepDataAtom } from '@/atoms/survey'
-import { Step1Welcome } from '@/components/steps/step-1-welcome'
-import { Step2ElectricityMeterCloseup } from '@/components/steps/step-2-find-computer'
-import { Step3Review } from '@/components/steps/step-3-review'
+import { currentStepAtom, surveyStepsAtom } from '@/atoms/survey'
+import { WelcomeStep } from '@/components/steps/welcome-step'
+import { CameraStep } from '@/components/steps/camera-step'
+import { ReviewStep } from '@/components/steps/review-step'
 
 export function SurveyFlow() {
-  const currentStep = useAtomValue(currentStepDataAtom)
-
-  // Render the appropriate component based on step ID
-  switch (currentStep.id) {
-    case 1:
-      return <Step1Welcome />
-    case 2:
-      return <Step2ElectricityMeterCloseup />
-    case 3:
-      return <Step3Review />
-    default:
-      return <Step1Welcome />
+  const currentStepId = useAtomValue(currentStepAtom)
+  const surveySteps = useAtomValue(surveyStepsAtom)
+  
+  // Flow logic:
+  // Step 0: Welcome page (pre-survey intro)
+  // Steps 1-5: Camera steps (actual survey steps from survey-steps.ts)  
+  // Step 6+: Review page (post-survey review)
+  
+  if (currentStepId === 0) {
+    return <WelcomeStep />
   }
+  
+  // Check if this is a camera step (within the survey steps range)
+  if (currentStepId >= 1 && currentStepId <= surveySteps.length) {
+    return <CameraStep />
+  }
+  
+  // After all camera steps, show review
+  if (currentStepId > surveySteps.length) {
+    return <ReviewStep />
+  }
+  
+  // Default fallback
+  return <WelcomeStep />
 } 

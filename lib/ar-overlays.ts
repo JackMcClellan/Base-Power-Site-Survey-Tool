@@ -53,7 +53,7 @@ export function createMeasurementOverlay(
 ): AROverlay {
   return {
     id: 'measurements',
-    render: (ctx, _canvas) => {
+    render: (ctx) => {
       ctx.strokeStyle = color
       ctx.fillStyle = color
       ctx.lineWidth = 2
@@ -63,18 +63,21 @@ export function createMeasurementOverlay(
         // Draw measurement rectangle
         ctx.strokeRect(x, y, width, height)
         
-        // Draw label with background
-        const textMetrics = ctx.measureText(label)
-        const labelX = x + width / 2 - textMetrics.width / 2
-        const labelY = y - 10
+        // Draw dimension lines
+        ctx.beginPath()
         
-        // Label background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-        ctx.fillRect(labelX - 4, labelY - 16, textMetrics.width + 8, 20)
+        // Top dimension line
+        ctx.moveTo(x - 10, y)
+        ctx.lineTo(x + width + 10, y)
         
-        // Label text
-        ctx.fillStyle = color
-        ctx.fillText(label, labelX, labelY)
+        // Left dimension line  
+        ctx.moveTo(x, y - 10)
+        ctx.lineTo(x, y + height + 10)
+        
+        ctx.stroke()
+        
+        // Draw measurement text
+        ctx.fillText(label, x + width / 2 - 20, y - 15)
       })
     }
   }

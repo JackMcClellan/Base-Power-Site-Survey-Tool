@@ -8,27 +8,27 @@ import { Badge } from '@/components/ui/badge'
 import { SurveyHeader } from '@/components/shared/survey-header'
 import { 
   surveyStepsAtom, 
-  surveyProgressAtom, 
   nextStepAtom, 
   startSurveyAtom,
   surveyDataAtom 
 } from '@/atoms/survey'
 
-export function Step1Welcome() {
+export function WelcomeStep() {
   const steps = useAtomValue(surveyStepsAtom)
-  const progress = useAtomValue(surveyProgressAtom)
   const surveyData = useAtomValue(surveyDataAtom)
   const nextStep = useSetAtom(nextStepAtom)
   const startSurvey = useSetAtom(startSurveyAtom)
 
-  // Get only the actual survey steps (not welcome or review)
-  const actualSurveySteps = steps.filter(step => step.isStep)
+  // All steps in the configuration are now camera steps
+  const actualSurveySteps = steps
 
   const handleStart = () => {
     if (!surveyData.startTime) {
       startSurvey()
+    } else {
+      // If survey was already started, just move to first step
+      nextStep()
     }
-    nextStep()
   }
 
   return (
@@ -128,17 +128,11 @@ export function Step1Welcome() {
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <Badge 
-                          variant={step.type === 'camera' ? 'default' : 'secondary'}
+                          variant="default"
                           className="text-xs"
                         >
                           Camera
                         </Badge>
-                        {step.stepType === 'electricity_meter_closeup' && (
-                          <span className="text-xs text-muted-foreground">Close-up shot</span>
-                        )}
-                        {step.stepType === 'electricity_meter_wide' && (
-                          <span className="text-xs text-muted-foreground">Wide area shot</span>
-                        )}
                       </div>
                     </div>
                   )

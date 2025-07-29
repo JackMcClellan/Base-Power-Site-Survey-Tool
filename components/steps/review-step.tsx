@@ -8,13 +8,14 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
-export function Step3Review() {
+export function ReviewStep() {
   const surveyData = useAtomValue(surveyDataAtom)
   const steps = useAtomValue(surveyStepsAtom)
   const setCurrentStep = useSetAtom(currentStepAtom)
   const [showThankYou, setShowThankYou] = useState(false)
   
-  const actualSteps = steps.filter(step => step.isStep)
+  // All steps in the configuration are now camera steps
+  const actualSteps = steps
   const completedSteps = surveyData.completedSteps
   const stepData = surveyData.stepData
 
@@ -74,24 +75,11 @@ export function Step3Review() {
           {/* Header Card */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl text-primary">Electricity Meter Survey Complete!</CardTitle>
+              <CardTitle className="text-2xl text-green-700">Electricity Meter Survey Complete!</CardTitle>
               <CardDescription>
                 Your electricity meter assessment has been completed. Here&apos;s a comprehensive summary of your electrical installation analysis.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              {/* Summary Stats */}
-              <div className="grid grid-cols-2 gap-4 text-center">
-                <div>
-                  <div className="text-2xl font-bold text-primary">{completedSteps.length}</div>
-                  <div className="text-sm text-muted-foreground">Steps Completed</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-primary">{Object.keys(stepData).length}</div>
-                  <div className="text-sm text-muted-foreground">Photos Captured</div>
-                </div>
-              </div>
-            </CardContent>
           </Card>
 
           {/* Step Details */}
@@ -116,7 +104,7 @@ export function Step3Review() {
                         <div className="flex-1">
                           <h3 className="font-semibold flex items-center space-x-2">
                             <Badge variant="outline" className="text-xs">
-                              Step {actualSteps.findIndex(s => s.id === stepId) + 1}
+                              Step {stepId}
                             </Badge>
                             <span>{step.title}</span>
                           </h3>

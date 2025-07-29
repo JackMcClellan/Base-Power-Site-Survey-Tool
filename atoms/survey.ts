@@ -1,8 +1,9 @@
 import { atom } from 'jotai'
 import { MeterDetectionResult } from '@/lib/meter-detection'
+import { SURVEY_STEPS, type SurveyStep } from '@/config/survey-steps'
 
-// Survey step state
-export const currentStepAtom = atom<number>(1)
+// Survey step state - starts at 0 for welcome page
+export const currentStepAtom = atom<number>(0)
 
 // Enhanced validation result interface
 interface ValidationResult {
@@ -71,7 +72,6 @@ interface SurveyStepData {
   timestamp: Date
   action: 'capture' | 'skip' | 'manual' | 'retry'
   stepTitle: string
-  stepType: 'electricity_meter_closeup' | 'electricity_meter_wide' | 'electrical_panel' | 'installation_space' | 'other'
   
   // Image and capture data
   imageMetadata?: ImageMetadata
@@ -140,113 +140,53 @@ export const surveyDataAtom = atom<{
   surveyContext: {}
 })
 
-// Updated survey configuration for electricity meter steps
-export const surveyStepsAtom = atom<{
-  id: number
-  title: string
-  description: string
-  type: 'dashboard' | 'camera' | 'review'
-  stepType: 'electricity_meter_closeup' | 'electricity_meter_wide' | 'electrical_panel' | 'installation_space' | 'welcome' | 'review'
-  instructions: string
-  isStep: boolean // New field to indicate if this counts as a survey step
-  validationChecks: {
-    name: string
-    description: string
-    required: boolean
-  }[]
-  tips: string[]
-}[]>([
-  {
-    id: 1,
-    title: 'Welcome',
-    description: 'Introduction to your electricity meter survey',
-    type: 'dashboard',
-    stepType: 'welcome',
-    isStep: false, // Welcome is not a counted step
-    instructions: 'Welcome to the Base Power Site Survey Tool. This survey will guide you through capturing important information about your electrical setup for battery system installation assessment.',
-    validationChecks: [],
-    tips: []
-  },
-  {
-    id: 2,
-    title: 'Electricity Meter Close-up',
-    description: 'Capture a detailed photo of your electricity meter',
-    type: 'camera',
-    stepType: 'electricity_meter_closeup',
-    isStep: true, // This is step 1 of the actual survey
-    instructions: "Let's start with your electricity meter. Please get close enough so the numbers on it are clear and legible.",
-    validationChecks: [
-      {
-        name: 'meter_identification',
-        description: 'Does the image contain an identifiable electricity meter?',
-        required: true
-      },
-      {
-        name: 'visible_text_numbers',
-        description: 'Are text and numbers on the meter face visible and clear?',
-        required: true
-      },
-      {
-        name: 'image_sharpness',
-        description: 'Is the image sharp and not blurry?',
-        required: true
-      },
-      {
-        name: 'primary_subject',
-        description: 'Is the meter the primary subject, filling a significant portion of the frame?',
-        required: true
-      }
-    ],
-    tips: [
-      'Get within 2-3 feet of the meter',
-      'Ensure good lighting on the meter face',
-      'Hold your device steady to avoid blur',
-      'Make sure the entire meter is visible in the frame'
-    ]
-  },
-  {
-    id: 3,
-    title: 'Review',
-    description: 'Review your survey results',
-    type: 'review',
-    stepType: 'review',
-    isStep: false, // Review is not a counted step
-    instructions: 'Review all captured data and photos from your survey.',
-    validationChecks: [],
-    tips: []
-  }
-])
+// Use the JSON-like step configuration
+export const surveyStepsAtom = atom<SurveyStep[]>(SURVEY_STEPS)
+
+// Export types for use in components
+export type { SurveyStep, OverlayDefinition, AIConfig } from '@/config/survey-steps'
+export type { SurveyStepData, ValidationResult }
 
 // Derived atoms
 export const currentStepDataAtom = atom((get) => {
-  const currentStep = get(currentStepAtom)
+  const currentStepId = get(currentStepAtom)
   const steps = get(surveyStepsAtom)
-  return steps.find(step => step.id === currentStep) || steps[0]
+  
+  // Map flow step IDs to camera step configuration:
+  // Step 0: Welcome (no config needed)
+  // Steps 1-5: Camera steps from configuration (map to steps[0] through steps[4])
+  // Step 6+: Review (no config needed)
+  
+  if (currentStepId >= 1 && currentStepId <= steps.length) {
+    // Map flow step ID to camera step configuration (1-based to 0-based)
+    return steps[currentStepId - 1]
+  }
+  
+  // Fallback to first step for welcome/review/invalid states
+  return steps[0]
 })
 
-// Updated progress atom to only count actual survey steps
+// Updated progress atom to only count camera steps
 export const surveyProgressAtom = atom((get) => {
-  const currentStep = get(currentStepAtom)
+  const currentStepId = get(currentStepAtom)
   const steps = get(surveyStepsAtom)
-  const actualSteps = steps.filter(step => step.isStep)
   
-  // Find current step info
-  const currentStepInfo = steps.find(step => step.id === currentStep)
-  const isCurrentStepCounted = currentStepInfo?.isStep || false
+  // Only camera steps (1-5) count toward progress
+  // Step 0 (welcome) and step 6+ (review) don't count
   
-  // Calculate current step number among actual steps
   let currentStepNumber = 0
-  if (isCurrentStepCounted) {
-    const stepsBeforeCurrent = steps.filter(step => step.id < currentStep && step.isStep)
-    currentStepNumber = stepsBeforeCurrent.length + 1
+  if (currentStepId >= 1 && currentStepId <= steps.length) {
+    currentStepNumber = currentStepId // Step 1 = progress 1, step 2 = progress 2, etc.
+  } else if (currentStepId > steps.length) {
+    currentStepNumber = steps.length // Review shows as completed
   }
   
   return {
-    current: currentStepNumber, // Current step number (0 for welcome/review)
-    total: actualSteps.length, // Total number of actual survey steps
-    percentage: actualSteps.length > 0 ? Math.round((currentStepNumber / actualSteps.length) * 100) : 0,
-    currentId: currentStep, // Keep track of the actual step ID for navigation
-    isStep: isCurrentStepCounted // Whether current page is a counted step
+    current: currentStepNumber, // Current camera step number (0 for welcome, steps.length for review)
+    total: steps.length, // Total number of camera steps
+    percentage: steps.length > 0 ? Math.round((currentStepNumber / steps.length) * 100) : 0,
+    currentId: currentStepId, // Keep track of the actual flow step ID
+    isStep: currentStepId >= 1 && currentStepId <= steps.length // Whether current is a counted camera step
   }
 })
 
@@ -254,22 +194,16 @@ export const surveyProgressAtom = atom((get) => {
 export const nextStepAtom = atom(
   null,
   (get, set) => {
-    const currentStep = get(currentStepAtom)
+    const currentStepId = get(currentStepAtom)
     const steps = get(surveyStepsAtom)
     const surveyData = get(surveyDataAtom)
     
-    if (currentStep < steps.length) {
-      set(currentStepAtom, currentStep + 1)
-      
-      // Only add to completedSteps if not already there (prevents duplicates when retaking photos)
-      const completedSteps = surveyData.completedSteps.includes(currentStep) 
-        ? surveyData.completedSteps 
-        : [...surveyData.completedSteps, currentStep]
-      
-      set(surveyDataAtom, {
-        ...surveyData,
-        completedSteps
-      })
+    // Flow: Welcome(0) -> Camera Steps(1-5) -> Review(6)
+    const maxStepId = steps.length + 1 // +1 for review step
+    
+    if (currentStepId < maxStepId) {
+      const nextId = currentStepId + 1
+      set(currentStepAtom, nextId)
     }
   }
 )
@@ -277,9 +211,11 @@ export const nextStepAtom = atom(
 export const previousStepAtom = atom(
   null,
   (get, set) => {
-    const currentStep = get(currentStepAtom)
-    if (currentStep > 1) {
-      set(currentStepAtom, currentStep - 1)
+    const currentStepId = get(currentStepAtom)
+    
+    // Can go back as long as we're not at the welcome step (0)
+    if (currentStepId > 0) {
+      set(currentStepAtom, currentStepId - 1)
     }
   }
 )
@@ -300,12 +236,20 @@ export const saveSurveyDataAtom = atom(
   null,
   (get, set, stepId: number, data: SurveyStepData) => {
     const surveyData = get(surveyDataAtom)
+    
+    // Ensure the step is marked as completed when data is saved
+    const completedSteps = surveyData.completedSteps.includes(stepId)
+      ? surveyData.completedSteps
+      : [...surveyData.completedSteps, stepId]
+    
+    
     set(surveyDataAtom, {
       ...surveyData,
       stepData: {
         ...surveyData.stepData,
         [stepId]: data
-      }
+      },
+      completedSteps
     })
   }
 )
@@ -326,17 +270,6 @@ export const validateStepDataAtom = atom(
           message: 'Vision analysis failed - please try again',
         },
         checks: {}
-      }
-      
-      const currentStep = get(surveyStepsAtom).find(s => s.id === stepId)
-      if (currentStep) {
-        currentStep.validationChecks.forEach(check => {
-          fallbackValidation.checks[check.name] = {
-            passed: false,
-            confidence: 0,
-            message: 'Analysis failed'
-          }
-        })
       }
       
       return fallbackValidation

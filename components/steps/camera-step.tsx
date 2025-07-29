@@ -9,12 +9,7 @@ import { SurveyActions } from '@/components/shared/survey-actions'
 import { Button } from '@/components/ui/button'
 
 import { 
-  createMeterGuidingFrame, 
-  createDetectionHighlight, 
-  createRealTimeFeedbackOverlay,
-  createScanningOverlay,
-  createQualityIndicator,
-  createMeterTypeIndicator
+  createMeterGuidingFrame
 } from '@/lib/vision-overlays'
 
 import { useCamera } from '@/hooks/use-camera'
@@ -25,18 +20,16 @@ import {
   currentStepDataAtom, 
   surveyProgressAtom, 
   nextStepAtom, 
-  saveSurveyDataAtom,
-  validateStepDataAtom
+  saveSurveyDataAtom
 } from '@/atoms/survey'
 
 
 
-export function Step2ElectricityMeterCloseup() {
+export function CameraStep() {
   const currentStep = useAtomValue(currentStepDataAtom)
   const progress = useAtomValue(surveyProgressAtom)
   const nextStep = useSetAtom(nextStepAtom)
   const saveSurveyData = useSetAtom(saveSurveyDataAtom)
-  const validateStepData = useSetAtom(validateStepDataAtom)
   
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [isAnalyzingCapture, setIsAnalyzingCapture] = useState(false)
@@ -45,19 +38,25 @@ export function Step2ElectricityMeterCloseup() {
   const [showResults, setShowResults] = useState(false)
 
   // Use basic camera hook (no vision requirements for capture)
-  const { cameraStream, cameraStatus, isCameraAvailable, requestCameraAccess } = useCamera()
+  const { cameraStream, cameraStatus, isCameraAvailable } = useCamera()
   
   // Backend API will handle image analysis after capture
 
-  // Simple guiding overlay - no real-time analysis
-  const overlays = useMemo(() => [
-    createMeterGuidingFrame('rgba(208, 245, 133, 0.8)', 3), // Primary color (light green) guiding frame
-  ], [])
+  // Create overlays from step configuration
+  const overlays = useMemo(() => {
+    if (currentStep.cameraConfig?.overlays) {
+      return currentStep.cameraConfig.overlays.map(overlayDef => 
+        overlayDef.component(overlayDef.props)
+      )
+    }
+    // Fallback to simple guiding frame
+    return [createMeterGuidingFrame('rgba(208, 245, 133, 0.8)', 3)]
+  }, [currentStep.cameraConfig])
 
   // Video element ref for basic capture
   const videoRef = useRef<HTMLVideoElement>(null)
 
-  // Debug camera state changes
+  // Debug camera state changes  
   useEffect(() => {
     console.log('Camera state update:', {
       cameraStatus,
@@ -66,7 +65,17 @@ export function Step2ElectricityMeterCloseup() {
       hasVideoRef: !!videoRef.current,
       videoReady: videoRef.current ? videoRef.current.readyState >= 2 : false
     })
-  }, [cameraStatus, isCameraAvailable, cameraStream, videoRef.current])
+  }, [cameraStatus, isCameraAvailable, cameraStream])
+
+  // Reset capture state when step changes
+  useEffect(() => {
+    console.log('Step changed to:', currentStep.id)
+    setCapturedImage(null)
+    setAnalysisResult(null)
+    setShowResults(false)
+    setIsAnalyzingCapture(false)
+    setRetryCount(0)
+  }, [currentStep.id])
 
   const handleCapture = useCallback(async () => {
     console.log('Capturing electricity meter image')
@@ -129,6 +138,12 @@ export function Step2ElectricityMeterCloseup() {
           formData.append('step', 'electricity-meter')
           formData.append('timestamp', new Date().toISOString())
           
+          // Add AI configuration if available
+          if (currentStep.aiConfig) {
+            formData.append('systemPrompt', currentStep.aiConfig.systemPrompt)
+            formData.append('userPrompt', currentStep.aiConfig.userPrompt)
+          }
+          
           // Call backend API for analysis
           const analysisResponse = await fetch('/api/analyze-meter', {
             method: 'POST',
@@ -140,9 +155,6 @@ export function Step2ElectricityMeterCloseup() {
           }
           
           const analysisResult = await analysisResponse.json()
-          
-          // Validate the results using existing validation logic
-          const validation = await validateStepData(currentStep.id, analysisResult, 'electricity_meter_closeup')
           
           // Store results
           setAnalysisResult(analysisResult)
@@ -193,7 +205,7 @@ export function Step2ElectricityMeterCloseup() {
     } catch (error) {
       console.error('Capture failed:', error)
     }
-  }, [isCameraAvailable, cameraStream, cameraStatus, validateStepData, currentStep.id])
+  }, [isCameraAvailable, cameraStream, cameraStatus, currentStep.aiConfig])
 
   // Separate function to handle successful capture or manual override
   const proceedWithCapture = useCallback((detectionResult: MeterDetectionResult, validation: { overall: { passed: boolean; confidence: number; message: string }; checks: Record<string, { passed: boolean; confidence: number; message: string }> }, timestamp: Date, imageData: string) => {
@@ -203,7 +215,6 @@ export function Step2ElectricityMeterCloseup() {
         timestamp,
         action: 'capture' as const,
         stepTitle: currentStep.title,
-        stepType: 'electricity_meter_closeup' as const,
         imageData,
         imageMetadata: {
           width: 1920, // These would come from the actual capture
@@ -240,7 +251,7 @@ export function Step2ElectricityMeterCloseup() {
     } catch (error) {
       console.error('Failed to save capture data:', error)
     }
-  }, [currentStep.id, saveSurveyData, nextStep])
+  }, [currentStep.id, currentStep.title, saveSurveyData, nextStep])
 
   // Handle proceeding to next step after successful analysis
   const handleProceed = useCallback(() => {
@@ -284,7 +295,6 @@ export function Step2ElectricityMeterCloseup() {
       timestamp: new Date(),
       action: 'skip' as const,
       stepTitle: currentStep.title,
-      stepType: 'electricity_meter_closeup' as const,
       validationResults: {
         overall: { passed: false, confidence: 0, message: 'Skipped by user' },
         checks: {}
@@ -342,7 +352,7 @@ export function Step2ElectricityMeterCloseup() {
                       <div className="font-medium mb-2">Issues Found:</div>
                       <div className="text-sm space-y-1">
                         {Object.entries(analysisResult.checks)
-                          .filter(([_, check]) => !check.passed)
+                          .filter(([, check]) => !check.passed)
                           .map(([key, check]) => (
                             <div key={key}>• {check.message}</div>
                           ))}
@@ -354,13 +364,14 @@ export function Step2ElectricityMeterCloseup() {
             </div>
             
             {/* Action Buttons */}
-            <div className="absolute bottom-4 left-4 right-4">
+            <div className="absolute bottom-24 sm:bottom-4 left-4 right-4">
               <div className="flex gap-3">
                 <Button
                   onClick={handleRetake}
                   variant="outline"
                   size="lg"
-                  className="flex-1"
+                  className="flex-1 py-4 text-lg"
+                  disabled={isAnalyzingCapture}
                 >
                   Retake Photo
                 </Button>
@@ -372,7 +383,8 @@ export function Step2ElectricityMeterCloseup() {
                         onClick={handleProceed}
                         variant="default"
                         size="lg"
-                        className="flex-1"
+                        className="flex-1 py-4 text-lg font-semibold"
+                        disabled={isAnalyzingCapture}
                       >
                         Continue
                       </Button>
@@ -382,7 +394,8 @@ export function Step2ElectricityMeterCloseup() {
                           onClick={handleManualOverride}
                           variant="destructive"
                           size="lg"
-                          className="flex-1"
+                          className="flex-1 py-4 text-lg"
+                          disabled={isAnalyzingCapture}
                         >
                           Use Anyway
                         </Button>
@@ -407,7 +420,7 @@ export function Step2ElectricityMeterCloseup() {
         
         {/* Bottom UI Container */}
         <div 
-          className="absolute bottom-0 inset-x-0 z-30"
+          className="absolute bottom-20 sm:bottom-4 inset-x-0 z-30"
           style={{ paddingBottom: `env(safe-area-inset-bottom)` }}
         >
           <SurveyInstructions 
