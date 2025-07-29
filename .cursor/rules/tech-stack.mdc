@@ -1,0 +1,585 @@
+---
+description: Tech Stack patterns and conventions for React applications
+globs: 
+alwaysApply: true
+---
+
+# Tech Stack Rules - React Applications
+
+## Core Tech Stack Overview
+- **Forms**: React Hook Form for all form state management and validation
+- **State Management**: Jotai for global state management
+- **UI Components**: ShadCN UI as the primary component library
+- **API Calls**: TanStack Query for React apps, Next.js built-in for Next.js apps
+- **Type Safety**: TypeScript with properly typed API responses
+- **Validation**: Zod for runtime validation and type inference
+
+## 1. Form Management with React Hook Form
+
+### Core Principles
+- **ALWAYS** use React Hook Form for any form with multiple inputs
+- **ALWAYS** use Zod schemas for form validation
+- **ALWAYS** integrate with ShadCN Form components
+- **NEVER** use uncontrolled forms or vanilla React state for complex forms
+
+### Form Pattern
+```tsx
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+
+// Define Zod schema
+const userFormSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email address"),
+  age: z.number().min(18, "Must be at least 18 years old"),
+})
+
+type UserFormData = z.infer<typeof userFormSchema>
+
+export function UserForm() {
+  const form = useForm<UserFormData>({
+    resolver: zodResolver(userFormSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      age: 18,
+    },
+  })
+
+  const onSubmit = async (data: UserFormData) => {
+    try {
+      // API call with typed data
+      await createUser(data)
+      form.reset()
+    } catch (error) {
+      // Handle error
+      console.error("Failed to create user:", error)
+    }
+  }
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Name</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter your name" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        {/* Additional fields */}
+        <Button type="submit" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting ? "Creating..." : "Create User"}
+        </Button>
+      </form>
+    </Form>
+  )
+}
+```
+
+### Form Validation Rules
+- **ALWAYS** define validation schemas using Zod
+- **ALWAYS** use `zodResolver` for React Hook Form integration
+- **PREFER** schema-first validation over inline validation rules
+- **ALWAYS** provide meaningful error messages
+
+## 2. State Management with Jotai
+
+### Core Principles
+- **ALWAYS** use Jotai atoms for global state
+- **PREFER** atomic state design over large state objects
+- **ALWAYS** co-locate related atoms
+- **USE** derived atoms for computed values
+
+### Atom Patterns
+```tsx
+// atoms/user.ts
+import { atom } from 'jotai'
+import { atomWithStorage } from 'jotai/utils'
+
+// Basic atom
+export const userAtom = atom<User | null>(null)
+
+// Persistent atom (localStorage)
+export const settingsAtom = atomWithStorage('settings', {
+  theme: 'light' as 'light' | 'dark',
+  notifications: true,
+})
+
+// Derived atom
+export const userNameAtom = atom(
+  (get) => get(userAtom)?.name ?? 'Anonymous'
+)
+
+// Write-only atom for actions
+export const loginAtom = atom(
+  null,
+  async (get, set, credentials: LoginCredentials) => {
+    try {
+      const user = await loginUser(credentials)
+      set(userAtom, user)
+      return user
+    } catch (error) {
+      throw error
+    }
+  }
+)
+```
+
+### Component Usage
+```tsx
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { userAtom, userNameAtom, loginAtom } from '@/atoms/user'
+
+export function UserProfile() {
+  // Read and write
+  const [user, setUser] = useAtom(userAtom)
+  
+  // Read only
+  const userName = useAtomValue(userNameAtom)
+  
+  // Write only
+  const login = useSetAtom(loginAtom)
+
+  return (
+    <div>
+      <p>Welcome, {userName}</p>
+      <Button onClick={() => login(credentials)}>
+        Login
+      </Button>
+    </div>
+  )
+}
+```
+
+### State Organization
+- **Group related atoms** in the same file (e.g., `atoms/user.ts`, `atoms/settings.ts`)
+- **Use atomWithStorage** for data that should persist across sessions
+- **Create derived atoms** for computed values instead of useEffect
+- **Keep atoms focused** - one responsibility per atom
+
+## 3. API Management
+
+### For React Applications (Non-Next.js)
+
+#### Use TanStack Query for API calls
+```tsx
+// hooks/api/users.ts
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { z } from 'zod'
+
+// API Response Types
+const UserSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+  createdAt: z.string(),
+})
+
+const UsersResponseSchema = z.object({
+  users: z.array(UserSchema),
+  total: z.number(),
+  page: z.number(),
+})
+
+export type User = z.infer<typeof UserSchema>
+export type UsersResponse = z.infer<typeof UsersResponseSchema>
+
+// API Functions with typed responses
+async function fetchUsers(): Promise<UsersResponse> {
+  const response = await fetch('/api/users')
+  if (!response.ok) {
+    throw new Error('Failed to fetch users')
+  }
+  const data = await response.json()
+  return UsersResponseSchema.parse(data) // Runtime validation
+}
+
+async function createUser(user: Omit<User, 'id' | 'createdAt'>): Promise<User> {
+  const response = await fetch('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(user),
+  })
+  if (!response.ok) {
+    throw new Error('Failed to create user')
+  }
+  const data = await response.json()
+  return UserSchema.parse(data)
+}
+
+// Custom Hooks
+export function useUsers() {
+  return useQuery({
+    queryKey: ['users'],
+    queryFn: fetchUsers,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+export function useCreateUser() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: createUser,
+    onSuccess: () => {
+      // Invalidate and refetch users
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
+}
+
+// Usage in Components
+export function UsersList() {
+  const { data: usersData, isLoading, error } = useUsers()
+  const createUserMutation = useCreateUser()
+
+  if (isLoading) return <div>Loading...</div>
+  if (error) return <div>Error: {error.message}</div>
+
+  return (
+    <div>
+      {usersData?.users.map(user => (
+        <div key={user.id}>{user.name}</div>
+      ))}
+      <Button 
+        onClick={() => createUserMutation.mutate({ name: 'New User', email: 'new@example.com' })}
+        disabled={createUserMutation.isPending}
+      >
+        Create User
+      </Button>
+    </div>
+  )
+}
+```
+
+### For Next.js Applications
+
+#### Use Next.js built-in data fetching (NO TanStack Query needed)
+```tsx
+// app/users/page.tsx - Server Component
+import { z } from 'zod'
+
+const UsersResponseSchema = z.object({
+  users: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+  })),
+})
+
+async function getUsers() {
+  const res = await fetch('https://api.example.com/users', {
+    next: { revalidate: 3600 } // Cache for 1 hour
+  })
+  
+  if (!res.ok) {
+    throw new Error('Failed to fetch users')
+  }
+  
+  const data = await res.json()
+  return UsersResponseSchema.parse(data) // Runtime validation
+}
+
+export default async function UsersPage() {
+  const { users } = await getUsers()
+  
+  return (
+    <div>
+      {users.map(user => (
+        <div key={user.id}>{user.name}</div>
+      ))}
+    </div>
+  )
+}
+```
+
+#### For Client-Side API calls in Next.js
+```tsx
+// hooks/use-users.ts - Custom hook for client components
+import { useState, useEffect } from 'react'
+import { z } from 'zod'
+
+const UserSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+})
+
+type User = z.infer<typeof UserSchema>
+
+export function useUsers() {
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const response = await fetch('/api/users')
+        if (!response.ok) throw new Error('Failed to fetch')
+        
+        const data = await response.json()
+        const parsedUsers = z.array(UserSchema).parse(data)
+        setUsers(parsedUsers)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unknown error')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchUsers()
+  }, [])
+
+  return { users, loading, error }
+}
+```
+
+## 4. API Response Typing
+
+### Core Principles
+- **ALWAYS** define Zod schemas for API responses
+- **ALWAYS** validate API responses at runtime using `.parse()`
+- **ALWAYS** export TypeScript types derived from Zod schemas
+- **NEVER** trust API responses without validation
+
+### API Type Patterns
+```tsx
+// types/api.ts
+import { z } from 'zod'
+
+// Base schemas
+export const BaseEntitySchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const UserSchema = BaseEntitySchema.extend({
+  name: z.string(),
+  email: z.string().email(),
+  role: z.enum(['admin', 'user', 'guest']),
+  profile: z.object({
+    avatar: z.string().url().optional(),
+    bio: z.string().optional(),
+  }).optional(),
+})
+
+export const ApiResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
+  z.object({
+    data: dataSchema,
+    message: z.string(),
+    success: z.boolean(),
+  })
+
+export const PaginatedResponseSchema = <T extends z.ZodType>(itemSchema: T) =>
+  z.object({
+    items: z.array(itemSchema),
+    total: z.number(),
+    page: z.number(),
+    limit: z.number(),
+    hasNext: z.boolean(),
+  })
+
+// Derived types
+export type User = z.infer<typeof UserSchema>
+export type ApiResponse<T> = {
+  data: T
+  message: string
+  success: boolean
+}
+export type PaginatedResponse<T> = {
+  items: T[]
+  total: number
+  page: number
+  limit: number
+  hasNext: boolean
+}
+```
+
+### Error Handling
+```tsx
+// utils/api-error.ts
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public code?: string
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+export async function handleApiResponse<T>(
+  response: Response,
+  schema: z.ZodType<T>
+): Promise<T> {
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new ApiError(
+      errorData.message || 'API request failed',
+      response.status,
+      errorData.code
+    )
+  }
+
+  const data = await response.json()
+  
+  try {
+    return schema.parse(data)
+  } catch (error) {
+    console.error('API response validation failed:', error)
+    throw new ApiError('Invalid API response format', 500)
+  }
+}
+```
+
+## 5. ShadCN UI Integration
+
+### Component Usage Patterns
+- **ALWAYS** use ShadCN components as building blocks
+- **ALWAYS** compose complex components using ShadCN primitives
+- **NEVER** modify ShadCN component files directly
+
+```tsx
+// components/user-card.tsx - Composed component using ShadCN
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import type { User } from "@/types/api"
+
+interface UserCardProps {
+  user: User
+  onEdit: (user: User) => void
+  onDelete: (userId: string) => void
+}
+
+export function UserCard({ user, onEdit, onDelete }: UserCardProps) {
+  return (
+    <Card className="w-full max-w-sm">
+      <CardHeader className="flex flex-row items-center space-y-0 pb-2">
+        <Avatar className="h-10 w-10">
+          <AvatarImage src={user.profile?.avatar} />
+          <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+        </Avatar>
+        <div className="ml-4 space-y-1">
+          <CardTitle className="text-sm font-medium">{user.name}</CardTitle>
+          <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+            {user.role}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">{user.email}</p>
+        <div className="flex gap-2 mt-4">
+          <Button size="sm" onClick={() => onEdit(user)}>
+            Edit
+          </Button>
+          <Button 
+            size="sm" 
+            variant="destructive" 
+            onClick={() => onDelete(user.id)}
+          >
+            Delete
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+## 6. Custom Hook Patterns
+
+### API Hook Structure (Your Implementation)
+```tsx
+// Note: Implement according to your specific requirements
+// This is a template for your custom API hook patterns
+
+export interface ApiHookOptions {
+  enabled?: boolean
+  onSuccess?: (data: any) => void
+  onError?: (error: Error) => void
+}
+
+export function useApiData<T>(
+  endpoint: string,
+  schema: z.ZodType<T>,
+  options?: ApiHookOptions
+) {
+  // Your custom implementation here
+  // This should follow your specific patterns for:
+  // - Data fetching
+  // - Caching
+  // - Error handling
+  // - Loading states
+}
+
+export function useApiMutation<TData, TVariables>(
+  mutationFn: (variables: TVariables) => Promise<TData>,
+  options?: {
+    onSuccess?: (data: TData) => void
+    onError?: (error: Error) => void
+  }
+) {
+  // Your custom implementation here
+}
+```
+
+## 7. Project Structure
+
+```
+src/
+  atoms/              # Jotai atoms
+    user.ts
+    settings.ts
+  components/
+    ui/               # ShadCN components
+    forms/            # Form components
+  hooks/
+    api/              # API hooks (TanStack Query for React)
+    use-*.ts          # Custom hooks (Next.js)
+  types/
+    api.ts            # API type definitions
+  lib/
+    utils.ts          # Utility functions
+    api.ts            # API client setup
+```
+
+## Rules Summary
+
+### ✅ Always Do:
+- Use React Hook Form + Zod for all forms
+- Use Jotai for global state management
+- Use ShadCN UI components as building blocks
+- Type all API responses with Zod schemas
+- Validate API responses at runtime
+- Use TanStack Query for React apps
+- Use Next.js built-in data fetching for Next.js apps
+- Create custom hooks for reusable logic
+
+### ❌ Never Do:
+- Use uncontrolled forms for complex forms
+- Store form state in Jotai atoms
+- Modify ShadCN components directly
+- Trust API responses without validation
+- Mix TanStack Query with Next.js built-in data fetching
+- Use inline API calls without proper error handling
+
+### 🎯 Framework-Specific Rules:
+- **React Apps**: Use TanStack Query for API calls
+- **Next.js Apps**: Use built-in data fetching (Server Components, fetch with cache)
+- **Both**: Use the same patterns for forms, state, and component composition
