@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { SurveyHeader } from '@/components/shared/survey-header'
 import { 
-  surveyStepsAtom, 
   nextStepAtom, 
   startSurveyAtom,
   surveyDataAtom 
@@ -14,14 +13,11 @@ import {
 import { useSurveyBackend } from '@/hooks/use-survey-backend'
 
 export function WelcomeStep() {
-  const steps = useAtomValue(surveyStepsAtom)
   const surveyData = useAtomValue(surveyDataAtom)
   const nextStep = useSetAtom(nextStepAtom)
   const startSurvey = useSetAtom(startSurveyAtom)
   const { updateCurrentStep } = useSurveyBackend()
 
-  // All steps in the configuration are now camera steps
-  const actualSurveySteps = steps
 
   const handleStart = async () => {
     if (!surveyData.startTime) {
@@ -48,40 +44,32 @@ export function WelcomeStep() {
           <Card className="text-center">
             <CardContent className="p-8">
               {/* BASE Badge */}
-              <div className="inline-flex items-center justify-center px-4 py-2 bg-secondary text-secondary-foreground rounded-lg font-semibold text-sm mb-6">
-                BASE
+              <div className="flex justify-center mb-6">
+                <img 
+                  src="/base.svg" 
+                  alt="BASE" 
+                  className="h-12" 
+                  style={{ filter: 'brightness(0) saturate(100%) invert(15%) sepia(8%) saturate(1071%) hue-rotate(15deg) brightness(94%) contrast(95%)' }}
+                />
               </div>
               
               {/* Main Title */}
               <div className="mb-4">
-                <h1 className="text-4xl font-bold text-foreground mb-2">
-                  Electricity Meter
+                <h1 className="text-3xl font-bold text-foreground mb-2">
+                Home Energy Site
                 </h1>
-                <h1 className="text-4xl font-bold text-foreground">
+                <h1 className="text-3xl font-bold text-foreground">
                   Survey
                 </h1>
               </div>
               
               {/* Subtitle */}
               <p className="text-lg text-muted-foreground mb-8">
-                AI-powered site assessment for battery system installation.
+              This form will help you take photos so we can see if your home meets Base&apos;s space and electrical requirements. 
               </p>
-              
-              {/* Features */}
-              <div className="space-y-3 mb-8">
-                <div className="text-center">
-                  <div className="text-2xl font-bold" style={{ color: '#292826' }}>
-                    {actualSurveySteps.length} <span className="text-lg font-normal">steps</span>
-                  </div>
-                </div>
-                
-                <div className="text-center">
-                  <div className="text-4xl font-bold" style={{ color: '#292826' }}>
-                    10-15 min
-                  </div>
-                </div>
-              </div>
-              
+              <p className="text-lg text-muted-foreground mb-8">
+                For the best experience, please use your phone to complete the survey.
+              </p>
               {/* Action Button */}
               <div>
                 <Button 
@@ -91,11 +79,7 @@ export function WelcomeStep() {
                   className="w-full font-semibold py-4 text-lg"
                   disabled={surveyData.currentlySyncing}
                 >
-                  {surveyData.currentlySyncing 
-                    ? 'Starting...' 
-                    : surveyData.startTime 
-                      ? 'Continue Survey' 
-                      : 'Start Assessment'}
+                      Start Survey
                 </Button>
               </div>
             </CardContent>

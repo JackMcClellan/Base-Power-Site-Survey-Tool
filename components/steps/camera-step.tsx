@@ -949,17 +949,16 @@ export function CameraStep() {
             instructions={currentStep.instructions}
             tips={currentStep.tips}
           />
-          <SurveyActions 
-            onCapture={handleCapture}
-            onSkip={currentStep.skippable ? handleSkip : undefined}
-            isLastStep={progress.current === progress.total}
-            isLoading={!isCameraReady || !!capturedImage}
-            captureLabel={
-              !isCameraReady ? "Starting Camera..." :
-              capturedImage ? "Photo Captured" :
-              "Take Picture"
-            }
-          />
+          {/* Only show actions when camera is ready and no image is captured */}
+          {isCameraReady && !capturedImage && (
+            <SurveyActions 
+              onCapture={handleCapture}
+              onSkip={currentStep.skippable ? handleSkip : undefined}
+              isLastStep={progress.current === progress.total}
+              isLoading={false}
+              captureLabel="Take Picture"
+            />
+          )}
         </div>
       </div>
     </div>

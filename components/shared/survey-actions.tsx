@@ -32,7 +32,7 @@ export function SurveyActions({
             onClick={onSkip}
             variant="outline"
             size="lg"
-            className="flex-1 py-4 text-lg"
+            className="flex-1 py-6 sm:py-4 text-lg"
             disabled={isLoading}
           >
             {skipLabel}
@@ -42,7 +42,7 @@ export function SurveyActions({
           onClick={onCapture}
           variant="default"
           size="lg"
-          className={`${onSkip ? 'flex-1' : 'w-full'} font-semibold py-4 text-lg`}
+          className={`${onSkip ? 'flex-1' : 'w-full'} font-semibold py-6 sm:py-4 text-lg`}
           disabled={isLoading}
         >
           {captureLabel || defaultCaptureLabel}
