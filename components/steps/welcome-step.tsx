@@ -10,26 +10,19 @@ import {
   startSurveyAtom,
   surveyDataAtom 
 } from '@/atoms/survey'
-import { useSurveyBackend } from '@/hooks/use-survey-backend'
 
 export function WelcomeStep() {
   const surveyData = useAtomValue(surveyDataAtom)
   const nextStep = useSetAtom(nextStepAtom)
   const startSurvey = useSetAtom(startSurveyAtom)
-  const { updateCurrentStep } = useSurveyBackend()
-
 
   const handleStart = async () => {
     if (!surveyData.startTime) {
-      // Start the survey
+      // Start the survey - this will navigate to step 0.5 (first guide)
       startSurvey()
-      // Update backend to step 1
-      await updateCurrentStep({ step: 1 })
     } else {
       // If survey was already started, just move to next step
       nextStep()
-      // Update backend with the new step (which would be 1 if coming from 0)
-      await updateCurrentStep({ step: 1 })
     }
   }
 

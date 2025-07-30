@@ -1,6 +1,7 @@
 // Simplified AI configuration for step validation
 export interface AIConfig {
   userPrompt: string
+  structuredFields?: Record<string, string>  // Optional structured data extraction fields
 }
 
 // Simplified camera configuration (overlays removed)
@@ -13,7 +14,7 @@ export interface SurveyStep {
   description: string
   instructions: string
   tips: string[]
-  stepType?: 'camera' | 'data-entry'  // New field to distinguish step types
+  stepType?: 'camera' | 'data-entry' | 'guide'  // Added 'guide' type for transitional screens
   skippable?: boolean  // Whether this step can be skipped
   cameraConfig: CameraConfig
   aiConfig: AIConfig
@@ -27,10 +28,40 @@ export interface SurveyStep {
       pattern?: string
     }
   }
+  // Guide-specific configuration
+  guideConfig?: {
+    mainDescription: string
+    instructionsParagraphs: string[]
+    buttonText: string
+    tip?: string
+  }
 }
 
-// Camera steps only - Welcome and Review are handled separately
+// All survey steps including guides and camera/data-entry steps
 export const SURVEY_STEPS: SurveyStep[] = [
+  // Guide to meter area
+  {
+    id: 0.5,
+    title: 'Let\'s Start Outside',
+    description: 'Guide to electricity meter location',
+    instructions: 'First, we\'ll take photos of your electricity meter and the surrounding area. Please walk to the outside wall of your home where your electricity meter is located.',
+    tips: [
+      'Your electricity meter is usually mounted on an exterior wall',
+      'It may be near other utility connections',
+      'Look for a round or square device with numbers'
+    ],
+    stepType: 'guide',
+    cameraConfig: {},
+    aiConfig: { userPrompt: '' },
+    guideConfig: {
+      mainDescription: 'First, we\'ll take photos of your electricity meter and the surrounding area.',
+      instructionsParagraphs: [
+        'Please walk to the <strong>outside wall of your home</strong> where your electricity meter is located.'
+      ],
+      buttonText: 'I\'m at the Meter',
+      tip: 'Your electricity meter is usually mounted on an exterior wall and may be near other utility connections.'
+    }
+  },
   {
     id: 1,
     title: 'Electricity Meter Close-up',
@@ -47,7 +78,13 @@ export const SURVEY_STEPS: SurveyStep[] = [
     cameraConfig: {},
     
     aiConfig: {
-      userPrompt: "Does the image contain an object that is identifiable as an electricity meter (circular or rectangular, with a glass/plastic cover and visible dials or digital display)? Is there visible text or numbers on the face of the meter? Is the image sharp and not blurry? Is the meter the primary subject, filling a significant portion of the frame?"
+      userPrompt: "Does the image contain an object that is identifiable as an electricity meter (circular or rectangular, with a glass/plastic cover and visible dials or digital display)? Is the image sharp and not blurry? Is the meter the primary subject, filling a significant portion of the frame?",
+      structuredFields: {
+        "model": "Model number from equipment labels",
+        "manufacturer": "Manufacturer name from equipment labels",
+        "serial": "Serial number from equipment labels",
+        "voltage": "Voltage ratings - look for voltage values like '240V', '480V', etc.",
+      }
     }
   },
   {
@@ -66,7 +103,7 @@ export const SURVEY_STEPS: SurveyStep[] = [
     cameraConfig: {},
     
     aiConfig: {
-      userPrompt: "Is the previously identified meter visible within a wider shot of a building's exterior wall? Does the image show the ground, the wall, and any potential obstructions like windows, doors, or other utility boxes near the meter?"
+      userPrompt: "Is there an electric meter visible within a wider shot of a building's exterior wall? Does the image show the ground, the wall, or any potential obstructions near the meter?"
     }
   },
   {
@@ -85,7 +122,7 @@ export const SURVEY_STEPS: SurveyStep[] = [
     cameraConfig: {},
     
     aiConfig: {
-      userPrompt: "Does the image show an exterior wall and adjacent ground space? Is it different from the previous wide shot? Does it capture the area to the right side of where the meter would be located?"
+      userPrompt: "Does the image show an exterior wall and adjacent ground space? Does it capture the area to the right side of where the meter would be located?"
     }
   },
   {
@@ -104,7 +141,7 @@ export const SURVEY_STEPS: SurveyStep[] = [
     cameraConfig: {},
     
     aiConfig: {
-      userPrompt: "Does the image show an exterior wall and adjacent ground space? Is it different from the two previous shots? Does it capture the area to the left side of where the meter would be located?"
+      userPrompt: "Does the image show an exterior wall and adjacent ground space? Does it capture the area to the left side of where the meter would be located?"
     }
   },
   {
@@ -123,7 +160,7 @@ export const SURVEY_STEPS: SurveyStep[] = [
     cameraConfig: {},
     
     aiConfig: {
-      userPrompt: "Does the image show a long expanse of an exterior wall, likely including a corner of the house? Is the full side wall visible from corner to corner?"
+      userPrompt: "Does the image show a long expanse of an exterior wall, maybe including a corner of the house? Is the full side wall visible with at least a  corner?"
     }
   },
   {
@@ -142,7 +179,30 @@ export const SURVEY_STEPS: SurveyStep[] = [
     cameraConfig: {},
     
     aiConfig: {
-      userPrompt: "Does the image contain a fence? Does the image show the space between the fence and the house wall? If no fence is present, is this image skippable for the survey?"
+      userPrompt: "Does the image contain a fence? Does the image show the space between the fence and the house wall?"
+    }
+  },
+  // Guide to A/C units
+  {
+    id: 6.5,
+    title: 'Now Find Your A/C Units',
+    description: 'Guide to air conditioning units',
+    instructions: 'Next, we need to capture photos of your air conditioning unit labels. Please walk to your outdoor air conditioning unit(s). These are usually located outside your home, often near a side or back wall.',
+    tips: [
+      'Look for the large metal box with a fan on top',
+      'Usually located outside near side or back walls',
+      'Connected to your home\'s cooling system'
+    ],
+    stepType: 'guide',
+    cameraConfig: {},
+    aiConfig: { userPrompt: '' },
+    guideConfig: {
+      mainDescription: 'Next, we need to capture photos of your air conditioning unit labels.',
+      instructionsParagraphs: [
+        'Please walk to your <strong>outdoor air conditioning unit(s)</strong>. These are usually located outside your home, often near a side or back wall.'
+      ],
+      buttonText: 'I\'m at My A/C Unit',
+      tip: 'Look for the large metal box with a fan on top, typically connected to your home\'s cooling system.'
     }
   },
   {
@@ -161,7 +221,16 @@ export const SURVEY_STEPS: SurveyStep[] = [
     cameraConfig: {},
     
     aiConfig: {
-      userPrompt: "Does the image contain a metallic or paper label with printed technical specifications? Can the AI detect and read text on the label? Specifically, can it identify the acronym 'LRA' or 'RLA'? Is the label the primary subject of the photo?"
+      userPrompt: "Does the image contain a metallic or paper label with printed technical specifications? Is the label the primary subject of the photo? Does the label look like it's from an A/C unit?",
+      structuredFields: {
+        "lra": "LRA (Locked Rotor Amperage) - look for 'LRA' followed by a number and 'A'",
+        "rla": "RLA (Rated Load Amperage) - look for 'RLA' followed by a number and 'A'",
+        "voltage": "Voltage ratings - look for voltage values like '240V', '480V', etc.",
+        "frequency": "Frequency - look for 'Hz' values like '60Hz', '50Hz'",
+        "power": "Power ratings - look for 'HP' values like '5HP', '10HP'",
+        "model": "Model number from equipment labels",
+        "manufacturer": "Manufacturer name from equipment labels"
+      }
     }
   },
   {
@@ -181,7 +250,39 @@ export const SURVEY_STEPS: SurveyStep[] = [
     cameraConfig: {},
     
     aiConfig: {
-      userPrompt: "Does the image contain a metallic or paper label with printed technical specifications? Can the AI detect and read text on the label? Specifically, can it identify the acronym 'LRA' or 'RLA'? Is this a different A/C unit from the previous photo?"
+      userPrompt: "Does the image contain a metallic or paper label with printed technical specifications? Is the label the primary subject of the photo? Does the label look like it's from an A/C unit?",
+      structuredFields: {
+        "lra": "LRA (Locked Rotor Amperage) - look for 'LRA' followed by a number and 'A'",
+        "rla": "RLA (Rated Load Amperage) - look for 'RLA' followed by a number and 'A'",
+        "voltage": "Voltage ratings - look for voltage values like '240V', '480V', etc.",
+        "frequency": "Frequency - look for 'Hz' values like '60Hz', '50Hz'",
+        "power": "Power ratings - look for 'HP' values like '5HP', '10HP'",
+        "model": "Model number from equipment labels",
+        "manufacturer": "Manufacturer name from equipment labels"
+      }
+    }
+  },
+  // Guide to electrical panel
+  {
+    id: 8.5,
+    title: 'Find Your Electrical Panel',
+    description: 'Guide to main electrical panel',
+    instructions: 'Finally, we need to take photos of your main electrical panel (breaker box). Please go inside your home and locate your main electrical panel. This is usually found in a garage, basement, utility room, or closet.',
+    tips: [
+      'Look for a gray metal box on the wall',
+      'Has a hinged door that opens to reveal circuit breakers',
+      'Usually found in garage, basement, or utility room'
+    ],
+    stepType: 'guide',
+    cameraConfig: {},
+    aiConfig: { userPrompt: '' },
+    guideConfig: {
+      mainDescription: 'Finally, we need to take photos of your main electrical panel (breaker box).',
+      instructionsParagraphs: [
+        'Please go <strong>inside your home</strong> and locate your main electrical panel. This is usually found in a garage, basement, utility room, or closet.'
+      ],
+      buttonText: 'I Found the Electrical Panel',
+      tip: 'Look for a gray metal box on the wall with a hinged door that opens to reveal rows of circuit breaker switches.'
     }
   },
   {
@@ -219,7 +320,10 @@ export const SURVEY_STEPS: SurveyStep[] = [
     cameraConfig: {},
     
     aiConfig: {
-      userPrompt: "Does the image focus on a single, larger breaker switch, often labeled 'Main'? Is there a number (e.g., 100, 125, 150, 200) visible and readable on or near the switch? Is this clearly the main disconnect switch?"
+      userPrompt: "Does the image focus on a single, larger breaker switch, often labeled 'Main'? Is there a number (e.g., 100, 125, 150, 200) visible and readable on or near the switch? Is this clearly the main disconnect switch?",
+      structuredFields: {
+        "amperage": "Amperage - look for 'A' followed by a number",
+      }
     }
   },
   {
@@ -240,7 +344,10 @@ export const SURVEY_STEPS: SurveyStep[] = [
     cameraConfig: {},
     
     aiConfig: {
-      userPrompt: "Read and extract the amperage number (e.g., 100, 125, 150, 200) from the main disconnect switch in this image. Return ONLY the numeric value followed by 'A' (e.g., '200A') if clearly visible. If you cannot read the number clearly, respond with 'Unable to read amperage'."
+      userPrompt: "Read and extract the amperage number (e.g., 100, 125, 150, 200) from the main disconnect switch in this image. Return ONLY the numeric value followed by 'A' (e.g., '200A') if clearly visible. If you cannot read the number clearly, respond with 'Unable to read amperage'.",
+      structuredFields: {
+        "amperage": "Amperage - look for 'A' followed by a number"
+      }
     },
     
     dataEntryConfig: {
@@ -273,4 +380,7 @@ export const SURVEY_STEPS: SurveyStep[] = [
       userPrompt: "Is the breaker box visible within a larger context (e.g., on a garage wall, in a closet, utility room)? Does the image show the surrounding area and any potential obstructions or nearby equipment?"
     }
   }
-] 
+]
+
+// Camera steps only - for components that need to filter out guide steps
+export const CAMERA_STEPS = SURVEY_STEPS.filter(step => step.stepType !== 'guide') 

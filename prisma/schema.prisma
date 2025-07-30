@@ -22,10 +22,7 @@ model Survey {
   
   // JSON fields for flexible data storage
   meterPhotos     Json? @map("meter_photos")
-  analysisResults Json? @map("analysis_results")
   surveyResponses Json? @map("survey_responses")
-  deviceInfo      Json? @map("device_info")
-  sessionMetadata Json? @map("session_metadata")
 
   @@map("surveys")
 }

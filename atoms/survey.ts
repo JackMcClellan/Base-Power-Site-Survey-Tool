@@ -1,13 +1,15 @@
 import { atom } from 'jotai'
-import { SURVEY_STEPS, type SurveyStep } from '@/config/survey-steps'
+import { SURVEY_STEPS, CAMERA_STEPS, type SurveyStep } from '@/config/survey-steps'
 
 // Basic analysis result interface for immediate UI feedback
-interface AnalysisResult {
+export interface AnalysisResult {
   overall: {
     passed: boolean
     confidence: number
     message: string
   }
+  extractedValue?: string
+  structuredData?: Record<string, string>
 }
 
 // Survey step state - starts at 0 for welcome page
@@ -42,6 +44,8 @@ interface StepData {
   // Image will be uploaded to S3, only keep reference
   imageUploaded: boolean
   retryCount: number
+  extractedValue?: string
+  structuredData?: Record<string, string>
 }
 
 // Lightweight survey state for frontend
@@ -59,39 +63,48 @@ export const surveyDataAtom = atom<{
   currentlySyncing: false
 })
 
-// Survey steps configuration
-export const surveyStepsAtom = atom<SurveyStep[]>(SURVEY_STEPS)
+// Survey steps configuration - use CAMERA_STEPS for components that need to filter out guides
+export const surveyStepsAtom = atom<SurveyStep[]>(CAMERA_STEPS)
 
 // Export types for components
 export type { SurveyStep, AIConfig } from '@/config/survey-steps'
-export type { StepData, ValidationResult, AnalysisResult }
+export type { StepData, ValidationResult }
+
+// Helper function to get the correct step sequence including guides
+const getStepSequence = (): number[] => {
+  return SURVEY_STEPS
+    .map(step => step.id)
+    .sort((a, b) => a - b)
+}
 
 // Derived atoms for UI state
 export const currentStepDataAtom = atom((get) => {
   const currentStepId = get(currentStepAtom)
-  const steps = get(surveyStepsAtom)
   
-  // Map flow step IDs to camera step configuration:
-  // Step 0: Welcome (no config needed)
-  // Steps 1-5: Camera steps from configuration (map to steps[0] through steps[4])
-  // Step 6+: Review (no config needed)
+  // Find the step in SURVEY_STEPS by ID
+  const step = SURVEY_STEPS.find(s => s.id === currentStepId)
   
-  if (currentStepId >= 1 && currentStepId <= steps.length) {
-    return steps[currentStepId - 1]
+  // Return the found step or fallback to first camera step
+  if (step) {
+    return step
   }
   
-  return steps[0]
+  // Fallback to first camera step if current step not found
+  return CAMERA_STEPS[0]
 })
 
-// Progress calculation for UI
+// Progress calculation for UI - only count camera/data-entry steps
 export const surveyProgressAtom = atom((get) => {
   const currentStepId = get(currentStepAtom)
-  const steps = get(surveyStepsAtom)
+  const steps = get(surveyStepsAtom) // This is CAMERA_STEPS (excludes guides)
   
+  // Find current step index in camera steps only
   let currentStepNumber = 0
-  if (currentStepId >= 1 && currentStepId <= steps.length) {
-    currentStepNumber = currentStepId
-  } else if (currentStepId > steps.length) {
+  const stepIndex = steps.findIndex(step => step.id === currentStepId)
+  
+  if (stepIndex >= 0) {
+    currentStepNumber = stepIndex + 1
+  } else if (currentStepId > steps[steps.length - 1]?.id) {
     currentStepNumber = steps.length
   }
   
@@ -100,7 +113,7 @@ export const surveyProgressAtom = atom((get) => {
     total: steps.length,
     percentage: steps.length > 0 ? Math.round((currentStepNumber / steps.length) * 100) : 0,
     currentId: currentStepId,
-    isStep: currentStepId >= 1 && currentStepId <= steps.length
+    isStep: steps.some(step => step.id === currentStepId)
   }
 })
 
@@ -109,13 +122,30 @@ export const nextStepAtom = atom(
   null,
   (get, set) => {
     const currentStepId = get(currentStepAtom)
-    const steps = get(surveyStepsAtom)
-    const maxStepId = steps.length + 1 // +1 for review step
+    const stepSequence = getStepSequence()
+    const maxStepId = Math.max(...CAMERA_STEPS.map(step => step.id)) + 1 // +1 for review step
     
-    if (currentStepId < maxStepId) {
-      set(currentStepAtom, currentStepId + 1)
-      // Backend sync will be handled by components using useSurveyBackend hook
+    // Find current step in sequence
+    const currentIndex = stepSequence.indexOf(currentStepId)
+    
+    if (currentIndex >= 0 && currentIndex < stepSequence.length - 1) {
+      // Move to next step in sequence
+      const nextStepId = stepSequence[currentIndex + 1]
+      set(currentStepAtom, nextStepId)
+    } else if (currentStepId < maxStepId && currentIndex === -1) {
+      // Current step not in sequence (might be 0), find the first step after it
+      const nextStepId = stepSequence.find(id => id > currentStepId)
+      if (nextStepId) {
+        set(currentStepAtom, nextStepId)
+      } else {
+        // No steps after current, go to review
+        set(currentStepAtom, maxStepId)
+      }
+    } else {
+      // Already at or past max step
+      set(currentStepAtom, maxStepId)
     }
+    // Backend sync will be handled by components using useSurveyBackend hook
   }
 )
 
@@ -123,9 +153,17 @@ export const previousStepAtom = atom(
   null,
   (get, set) => {
     const currentStepId = get(currentStepAtom)
+    const stepSequence = getStepSequence()
     
-    if (currentStepId > 0) {
-      set(currentStepAtom, currentStepId - 1)
+    // Find current step in sequence
+    const currentIndex = stepSequence.indexOf(currentStepId)
+    
+    if (currentIndex > 0) {
+      // Move to previous step in sequence
+      set(currentStepAtom, stepSequence[currentIndex - 1])
+    } else if (currentStepId > 0) {
+      // Go back to welcome step
+      set(currentStepAtom, 0)
     }
   }
 )
@@ -139,7 +177,8 @@ export const startSurveyAtom = atom(
       ...surveyData,
       startTime: new Date()
     })
-    set(currentStepAtom, 1)
+    // Start with the first guide step (0.5)
+    set(currentStepAtom, 0.5)
     // Backend sync will be handled by components using useSurveyBackend hook
   }
 )

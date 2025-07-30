@@ -126,20 +126,11 @@ export function useSurveyBackend() {
 
       // Step 3: Update survey with file reference
       const updateData: Record<string, unknown> = {}
-      if (imageType === 'meter_photo') {
-        updateData.meterPhotos = {
-          [`step_${stepId}`]: {
-            fileName: key,
-            uploadedAt: new Date().toISOString(),
-          },
-        }
-      } else {
-        updateData.analysisResults = {
-          [`step_${stepId}`]: {
-            fileName: key,
-            uploadedAt: new Date().toISOString(),
-          },
-        }
+      updateData.meterPhotos = {
+        [`step_${stepId}`]: {
+          fileName: key,
+          uploadedAt: new Date().toISOString(),
+        },
       }
 
       await fetch(`/api/survey/${surveyId}`, {
@@ -147,7 +138,6 @@ export function useSurveyBackend() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           meterPhotos: updateData.meterPhotos,
-          analysisResults: updateData.analysisResults 
         }),
       })
 

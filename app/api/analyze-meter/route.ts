@@ -7,6 +7,7 @@ interface AnalysisResponse {
   isValid?: boolean
   description?: string
   extractedValue?: string
+  structuredData?: Record<string, string>
 }
 
 interface AnalysisResult {
@@ -16,6 +17,7 @@ interface AnalysisResult {
     message: string
   }
   extractedValue?: string
+  structuredData?: Record<string, string>
 }
 
 // Main API handler
@@ -29,7 +31,7 @@ export async function POST(request: NextRequest) {
     })
 
     // 2. Extract and validate form data
-    const { image, userPrompt, isDataExtraction, error } = await extractFormData(request)
+    const { image, userPrompt, isDataExtraction, structuredFields, error } = await extractFormData(request)
     if (error) {
       return NextResponse.json({ error }, { status: 400 })
     }
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
     const imageUrl = await prepareImageForOpenAI(image!)
 
     // 4. Get AI analysis
-    const analysisResponse = await analyzeWithOpenAI(openai, imageUrl, userPrompt)
+    const analysisResponse = await analyzeWithOpenAI(openai, imageUrl, userPrompt, structuredFields)
     console.log('OpenAI Response:', JSON.stringify(analysisResponse))
 
     // 5. Process the response based on request type
@@ -79,6 +81,7 @@ async function extractFormData(request: NextRequest) {
   const image = formData.get('image') as File
   const userPrompt = formData.get('userPrompt') as string
   const isDataExtraction = formData.get('isDataExtraction') === 'true'
+  const structuredFields = formData.get('structuredFields') as string
 
   // Validate image presence
   if (!image) {
@@ -96,7 +99,17 @@ async function extractFormData(request: NextRequest) {
     return { error: 'Image too large. Maximum size is 20MB.' }
   }
 
-  return { image, userPrompt, isDataExtraction, error: null }
+  // Parse structured fields if provided
+  let parsedStructuredFields: Record<string, string> | null = null
+  if (structuredFields) {
+    try {
+      parsedStructuredFields = JSON.parse(structuredFields)
+    } catch (e) {
+      console.warn('Invalid structured fields JSON:', e)
+    }
+  }
+
+  return { image, userPrompt, isDataExtraction, structuredFields: parsedStructuredFields, error: null }
 }
 
 // Convert image to base64 data URL for OpenAI
@@ -107,23 +120,40 @@ async function prepareImageForOpenAI(image: File): Promise<string> {
 }
 
 // Call OpenAI Vision API
-async function analyzeWithOpenAI(openai: OpenAI, imageUrl: string, userPrompt?: string): Promise<AnalysisResponse> {
+async function analyzeWithOpenAI(openai: OpenAI, imageUrl: string, userPrompt?: string, structuredFields?: Record<string, string> | null): Promise<AnalysisResponse> {
   const analysisPrompt = userPrompt || 'Please analyze this image for survey suitability.'
   
+  // Build structured data section based on provided fields
+  let structuredDataSection = ''
+  let structuredDataInstructions = ''
+  
+  if (structuredFields && Object.keys(structuredFields).length > 0) {
+    structuredDataSection = `,
+  "structuredData": {
+    ${Object.entries(structuredFields).map(([key]) => `"${key}": "value if found, empty string if not found"`).join(',\n    ')}
+  }`
+    
+    structuredDataInstructions = `
+- In "structuredData", extract the following specifications from labels:
+${Object.entries(structuredFields).map(([key, description]) => `  * ${key}: ${description}`).join('\n')}
+- ALWAYS include ALL keys in structuredData, even if not found - use empty string ("") for values you cannot clearly read
+- Only put actual values if you can clearly see and read them from the image`
+  }
+
   const systemPrompt = `You are an expert electrical system analyst specializing in battery system installations. 
 
 IMPORTANT: You must respond in the following JSON format:
 {
   "isValid": true/false,
   "description": "Detailed description of what you see in the image",
-  "extractedValue": "extracted value if applicable (e.g., '200A' for amperage)"
+  "extractedValue": "extracted value if applicable (e.g., '200A' for amperage)"${structuredDataSection}
 }
 
 For validation:
 - Set "isValid" to true if the image clearly shows what was requested and is suitable for the survey
 - Set "isValid" to false if the image doesn't show the requested content, is unclear, or unsuitable
 - In "description", explain what you see and why it is or isn't valid
-- If asked to extract a specific value (like amperage), include it in "extractedValue"`
+- If asked to extract a specific value (like amperage), include it in "extractedValue"${structuredDataInstructions}`
   
   const completion = await openai.chat.completions.create({
     model: "gpt-4o",
@@ -172,7 +202,8 @@ function processDataExtraction(response: AnalysisResponse): AnalysisResult {
         confidence: 0.95,
         message: response.description || `Successfully extracted value: ${response.extractedValue}`
       },
-      extractedValue: response.extractedValue
+      extractedValue: response.extractedValue,
+      structuredData: response.structuredData
     }
   }
 
@@ -188,7 +219,8 @@ function processDataExtraction(response: AnalysisResponse): AnalysisResult {
         confidence: 0.9,
         message: response.description || `Successfully extracted amperage: ${extractedValue}`
       },
-      extractedValue: extractedValue
+      extractedValue: extractedValue,
+      structuredData: response.structuredData
     }
   }
 
@@ -214,7 +246,8 @@ function processDataExtraction(response: AnalysisResponse): AnalysisResult {
         confidence: 0.7,
         message: response.description || `Extracted possible amperage: ${extractedValue}`
       },
-      extractedValue: extractedValue
+      extractedValue: extractedValue,
+      structuredData: response.structuredData
     }
   }
 
@@ -238,6 +271,7 @@ function processValidation(response: AnalysisResponse): AnalysisResult {
       passed: isValid,
       confidence: isValid ? 0.9 : 0.1,
       message: description
-    }
+    },
+    structuredData: response.structuredData
   }
 } 

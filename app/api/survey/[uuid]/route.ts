@@ -12,9 +12,7 @@ const CreateOrUpdateSurveySchema = z.object({
   status: z.enum(['IN_PROGRESS', 'COMPLETED']).optional(),
   surveyData: z.record(z.unknown()).optional(),
   stepData: z.record(z.unknown()).optional(),
-  deviceInfo: z.record(z.unknown()).optional(),
   meterPhotos: z.record(z.unknown()).optional(),
-  analysisResults: z.record(z.unknown()).optional(),
 })
 
 const CompleteSurveySchema = z.object({
@@ -45,10 +43,7 @@ export async function GET(
         updatedAt: survey.updatedAt,
         completedAt: survey.completedAt,
         meterPhotos: survey.meterPhotos,
-        analysisResults: survey.analysisResults,
         surveyResponses: survey.surveyResponses,
-        deviceInfo: survey.deviceInfo,
-        sessionMetadata: survey.sessionMetadata,
       },
     })
   } catch (error) {
@@ -93,9 +88,7 @@ export async function POST(
         ...validatedBody.stepData
       }
     }
-    if (validatedBody.deviceInfo !== undefined) updateData.deviceInfo = validatedBody.deviceInfo
     if (validatedBody.meterPhotos !== undefined) updateData.meterPhotos = validatedBody.meterPhotos
-    if (validatedBody.analysisResults !== undefined) updateData.analysisResults = validatedBody.analysisResults
 
     let survey = await SurveyRepository.findByUserId(validatedUuid)
     
@@ -231,15 +224,6 @@ export async function PATCH(
 
     // Complete the survey
     const updateData: UpdateSurveyInput = { status: 'COMPLETED' }
-    
-    if (validatedBody.finalData || validatedBody.completionNotes) {
-      updateData.sessionMetadata = {
-        ...(existingSurvey.sessionMetadata as object || {}),
-        finalData: validatedBody.finalData,
-        completionNotes: validatedBody.completionNotes,
-        completedAt: new Date().toISOString(),
-      }
-    }
 
     console.log('Updating survey with data:', updateData)
 

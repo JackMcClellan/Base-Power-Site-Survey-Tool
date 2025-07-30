@@ -12,16 +12,6 @@ import { useSurveyBackend } from '@/hooks/use-survey-backend'
 
 // Overlays removed - clean camera view only
 
-// Simple result interface
-interface AnalysisResult {
-  overall: {
-    passed: boolean
-    confidence: number
-    message: string
-  }
-  extractedValue?: string  // For data extraction steps
-}
-
 import { 
   currentStepDataAtom, 
   surveyProgressAtom, 
@@ -29,9 +19,11 @@ import {
   saveStepDataAtom,
   surveyDataAtom,
   retakeModeAtom,
-  currentStepAtom
+  currentStepAtom,
+  type AnalysisResult
 } from '@/atoms/survey'
 
+import { SURVEY_STEPS } from '@/config/survey-steps'
 
 
 export function CameraStep() {
@@ -190,6 +182,9 @@ export function CameraStep() {
       // Add AI configuration
       if (currentStep.aiConfig) {
         formData.append('userPrompt', currentStep.aiConfig.userPrompt)
+        if (currentStep.aiConfig.structuredFields) {
+          formData.append('structuredFields', JSON.stringify(currentStep.aiConfig.structuredFields))
+        }
       }
       
       // Call backend API for analysis
@@ -263,11 +258,14 @@ export function CameraStep() {
     
     saveStepData(currentStep.id, stepData)
     
+    // Get the actual next step ID
+    const nextStepId = getNextStepId(currentStep.id)
+    
     // Check if in retake mode
     if (retakeMode.isRetaking && retakeMode.returnToReview) {
       // Don't update backend step number during retake
       await updateCurrentStep({ 
-        step: progress.currentId, // Keep the same step number
+        step: currentStep.id, // Keep the same step number
         stepData: {
           [`step_${currentStep.id}`]: {
             ...stepData,
@@ -278,13 +276,12 @@ export function CameraStep() {
       
       // Clear retake mode and return to review
       setRetakeMode({ isRetaking: false, returnToReview: false })
-      const reviewStepNumber = progress.total + 1 // Review is after all survey steps
+      const reviewStepNumber = Math.max(...SURVEY_STEPS.filter(step => step.stepType !== 'guide').map(step => step.id)) + 1
       setCurrentStep(reviewStepNumber)
     } else {
-      // Normal flow - update backend with new step and data entry value
-      const nextStepNumber = progress.currentId + 1
+      // Normal flow - update backend with actual next step ID
       await updateCurrentStep({ 
-        step: nextStepNumber,
+        step: nextStepId,
         stepData: {
           [`step_${currentStep.id}`]: {
             ...stepData,
@@ -411,6 +408,9 @@ export function CameraStep() {
           // Add AI configuration if available
           if (currentStep.aiConfig) {
             formData.append('userPrompt', currentStep.aiConfig.userPrompt)
+            if (currentStep.aiConfig.structuredFields) {
+              formData.append('structuredFields', JSON.stringify(currentStep.aiConfig.structuredFields))
+            }
           }
           
           // Call backend API for analysis
@@ -473,13 +473,13 @@ export function CameraStep() {
               saveStepData(currentStep.id, stepData)
               
               // Update backend with completed step
-              console.log('Auto-saving: Updating current step in database...')
               await updateCurrentStep({ 
-                step: progress.currentId,
+                step: currentStep.id,
                 stepData: {
                   [`step_${currentStep.id}`]: {
                     ...stepData,
-                    extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null
+                    extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null,
+                    structuredData: ('structuredData' in analysisResult ? analysisResult.structuredData : undefined) || undefined
                   }
                 }
               })
@@ -506,6 +506,22 @@ export function CameraStep() {
       console.error('Capture failed:', error)
     }
   }, [isCameraReady, currentStep.aiConfig, currentStep.id, currentStep.title])
+
+  // Add helper function to get next step ID
+  const getNextStepId = (currentId: number) => {
+    const stepSequence = SURVEY_STEPS
+      .map(step => step.id)
+      .sort((a, b) => a - b)
+    
+    const currentIndex = stepSequence.indexOf(currentId)
+    if (currentIndex >= 0 && currentIndex < stepSequence.length - 1) {
+      return stepSequence[currentIndex + 1]
+    }
+    
+    // If not found in sequence or at end, go to review
+    const maxStepId = Math.max(...SURVEY_STEPS.filter(step => step.stepType !== 'guide').map(step => step.id))
+    return maxStepId + 1 // Review step
+  }
 
   // Handle proceeding to next step after analysis
   const handleProceed = useCallback(async () => {
@@ -632,7 +648,9 @@ export function CameraStep() {
           validated: analysisResult.overall.passed,
           validationResult: analysisResult.overall,
           imageUploaded: true,
-          retryCount: retryCount
+          retryCount: retryCount,
+          extractedValue: analysisResult.extractedValue,
+          structuredData: analysisResult.structuredData
         }
 
         saveStepData(currentStep.id, stepData)
@@ -641,23 +659,25 @@ export function CameraStep() {
         if (retakeMode.isRetaking && retakeMode.returnToReview) {
           // Just update the step data without changing step number
           await updateCurrentStep({ 
-            step: progress.currentId, // Keep the same step number
+            step: currentStep.id, // Keep the same step number
             stepData: {
               [`step_${currentStep.id}`]: {
                 ...stepData,
-                extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null
+                extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null,
+                structuredData: ('structuredData' in analysisResult ? analysisResult.structuredData : undefined) || undefined
               }
             }
           })
         } else {
-          // Normal flow - update backend with new step
-          const nextStepNumber = progress.currentId + 1
+          // Normal flow - update backend with actual next step ID
+          const nextStepId = getNextStepId(currentStep.id)
           await updateCurrentStep({ 
-            step: nextStepNumber,
+            step: nextStepId,
             stepData: {
               [`step_${currentStep.id}`]: {
                 ...stepData,
-                extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null
+                extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null,
+                structuredData: ('structuredData' in analysisResult ? analysisResult.structuredData : undefined) || undefined
               }
             }
           })
@@ -667,10 +687,10 @@ export function CameraStep() {
         
         // In retake mode, don't update step number
         if (!retakeMode.isRetaking || !retakeMode.returnToReview) {
-          // Just update to the next step
-          const nextStepNumber = progress.currentId + 1
+          // Update backend to the actual next step ID
+          const nextStepId = getNextStepId(currentStep.id)
           await updateCurrentStep({ 
-            step: nextStepNumber
+            step: nextStepId
           })
         }
       }
@@ -683,7 +703,7 @@ export function CameraStep() {
       if (retakeMode.isRetaking && retakeMode.returnToReview) {
         // Clear retake mode and return to review
         setRetakeMode({ isRetaking: false, returnToReview: false })
-        const reviewStepNumber = progress.total + 1 // Review is after all survey steps
+        const reviewStepNumber = Math.max(...SURVEY_STEPS.filter(step => step.stepType !== 'guide').map(step => step.id)) + 1
         setCurrentStep(reviewStepNumber)
       } else {
         nextStep()
@@ -694,13 +714,13 @@ export function CameraStep() {
       if (retakeMode.isRetaking && retakeMode.returnToReview) {
         // Clear retake mode and return to review
         setRetakeMode({ isRetaking: false, returnToReview: false })
-        const reviewStepNumber = progress.total + 1 // Review is after all survey steps
+        const reviewStepNumber = Math.max(...SURVEY_STEPS.filter(step => step.stepType !== 'guide').map(step => step.id)) + 1
         setCurrentStep(reviewStepNumber)
       } else {
         nextStep()
       }
     }
-  }, [capturedImage, analysisResult, currentStep.id, currentStep.title, saveStepData, nextStep, retryCount, uploadImage, updateCurrentStep, progress.currentId, surveyData.stepData])
+  }, [capturedImage, analysisResult, currentStep.id, saveStepData, nextStep, retryCount, uploadImage, updateCurrentStep, surveyData.stepData, retakeMode, setRetakeMode, setCurrentStep])
 
   // Handle retaking the photo
   const handleRetake = useCallback(() => {
@@ -723,11 +743,14 @@ export function CameraStep() {
     
     saveStepData(currentStep.id, stepData)
     
+    // Get the actual next step ID
+    const nextStepId = getNextStepId(currentStep.id)
+    
     // Check if in retake mode
     if (retakeMode.isRetaking && retakeMode.returnToReview) {
       // Just update the step data without changing step number
       await updateCurrentStep({ 
-        step: progress.currentId, // Keep the same step number
+        step: currentStep.id, // Keep the same step number
         stepData: {
           [`step_${currentStep.id}`]: stepData
         }
@@ -735,13 +758,12 @@ export function CameraStep() {
       
       // Clear retake mode and return to review
       setRetakeMode({ isRetaking: false, returnToReview: false })
-      const reviewStepNumber = progress.total + 1 // Review is after all survey steps
+      const reviewStepNumber = Math.max(...SURVEY_STEPS.filter(step => step.stepType !== 'guide').map(step => step.id)) + 1
       setCurrentStep(reviewStepNumber)
     } else {
-      // Normal flow - update backend with new step
-      const nextStepNumber = progress.currentId + 1
+      // Normal flow - update backend with actual next step ID
       await updateCurrentStep({ 
-        step: nextStepNumber,
+        step: nextStepId,
         stepData: {
           [`step_${currentStep.id}`]: stepData
         }
@@ -749,7 +771,7 @@ export function CameraStep() {
       
       nextStep()
     }
-  }, [currentStep.id, currentStep.title, saveStepData, nextStep, updateCurrentStep, progress.currentId, retakeMode, setRetakeMode, setCurrentStep, progress.total])
+  }, [currentStep.id, currentStep.title, saveStepData, nextStep, updateCurrentStep, retakeMode, setRetakeMode, setCurrentStep])
 
 
 

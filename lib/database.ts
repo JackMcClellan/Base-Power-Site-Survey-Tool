@@ -29,20 +29,14 @@ export const CreateSurveySchema = z.object({
   currentStep: z.number().optional(),
   status: z.enum(['IN_PROGRESS', 'COMPLETED']).optional(),
   meterPhotos: z.record(z.unknown()).optional(),
-  analysisResults: z.record(z.unknown()).optional(),
   surveyResponses: z.record(z.unknown()).optional(),
-  deviceInfo: z.record(z.unknown()).optional(),
-  sessionMetadata: z.record(z.unknown()).optional(),
 })
 
 export const UpdateSurveySchema = z.object({
   currentStep: z.number().optional(),
   status: z.enum(['IN_PROGRESS', 'COMPLETED']).optional(),
   meterPhotos: z.record(z.unknown()).optional(),
-  analysisResults: z.record(z.unknown()).optional(),
   surveyResponses: z.record(z.unknown()).optional(),
-  deviceInfo: z.record(z.unknown()).optional(),
-  sessionMetadata: z.record(z.unknown()).optional(),
 })
 
 export type CreateSurveyInput = z.infer<typeof CreateSurveySchema>
@@ -63,10 +57,7 @@ export class SurveyRepository {
         currentStep: surveyData.currentStep ?? 0,
         status: surveyData.status ?? 'IN_PROGRESS',
         meterPhotos: surveyData.meterPhotos as any,
-        analysisResults: surveyData.analysisResults as any,
         surveyResponses: surveyData.surveyResponses as any,
-        deviceInfo: surveyData.deviceInfo as any,
-        sessionMetadata: surveyData.sessionMetadata as any,
       }
     })
   }
@@ -88,22 +79,10 @@ export class SurveyRepository {
         ...(existing.meterPhotos as any || {}),
         ...(updates.meterPhotos as any)
       } : existing.meterPhotos,
-      analysisResults: updates.analysisResults ? {
-        ...(existing.analysisResults as any || {}),
-        ...(updates.analysisResults as any)
-      } : existing.analysisResults,
       surveyResponses: updates.surveyResponses ? {
         ...(existing.surveyResponses as any || {}),
         ...(updates.surveyResponses as any)
       } : existing.surveyResponses,
-      deviceInfo: updates.deviceInfo ? {
-        ...(existing.deviceInfo as any || {}),
-        ...(updates.deviceInfo as any)
-      } : existing.deviceInfo,
-      sessionMetadata: updates.sessionMetadata ? {
-        ...(existing.sessionMetadata as any || {}),
-        ...(updates.sessionMetadata as any)
-      } : existing.sessionMetadata,
       // Auto-set completedAt when status becomes COMPLETED
       ...(updates.status === 'COMPLETED' && { completedAt: new Date() })
     }

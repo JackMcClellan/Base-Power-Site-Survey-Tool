@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useSurveyBackend } from '@/hooks/use-survey-backend'
 import { ThankYou } from '@/components/thank-you'
-import { SURVEY_STEPS } from '@/config/survey-steps'
+import { CAMERA_STEPS } from '@/config/survey-steps'
 
 interface SurveyDataFromBackend {
   id: string
@@ -17,7 +17,6 @@ interface SurveyDataFromBackend {
   currentStep: number
   status: string
   meterPhotos?: Record<string, unknown>
-  analysisResults?: Record<string, unknown>
   surveyResponses?: Record<string, unknown>
   [key: string]: unknown
 }
@@ -39,7 +38,6 @@ export function ReviewStep() {
       if (!surveyId) return
       
       try {
-        setIsLoadingSurvey(true)
         // Fetch complete survey data
         const surveyResponse = await fetch(`/api/survey/${surveyId}`)
         if (surveyResponse.ok) {
@@ -99,12 +97,22 @@ export function ReviewStep() {
     return null
   }
 
+  const getStructuredData = (stepId: number): Record<string, string> | null => {
+    const stepData = getStepData(stepId)
+    if (stepData && typeof stepData === 'object' && 'structuredData' in stepData) {
+      const structured = stepData.structuredData as Record<string, string>
+      // Return all keys, but we'll filter display in the UI
+      return structured || null
+    }
+    return null
+  }
+
   const handleFinishSurvey = async () => {
     try {
       // Complete the survey in the backend
       const success = await completeSurvey({
         finalData: {
-          totalSteps: SURVEY_STEPS.length,
+          totalSteps: CAMERA_STEPS.length,
           completionTime: new Date().toISOString()
         },
         completionNotes: 'Survey completed successfully'
@@ -138,18 +146,10 @@ export function ReviewStep() {
     return <ThankYou />
   }
 
-  // Show loading state while fetching survey data
-  if (isLoadingSurvey) {
-    return (
-      <div className="flex flex-col w-screen h-screen overflow-hidden bg-background">
-        <SurveyHeader showStepNumber={false} />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-lg text-muted-foreground">Loading survey data...</p>
-          </div>
-        </div>
-      </div>
-    )
+  // Don't show loading state - proceed immediately
+  if (isLoadingSurvey && !backendSurveyData) {
+    // Still loading initial data, just show empty state
+    return null
   }
 
   return (
@@ -179,7 +179,7 @@ export function ReviewStep() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {SURVEY_STEPS.map((step) => {
+                {CAMERA_STEPS.map((step) => {
                   const stepCompleted = isStepCompleted(step.id)
                   const data = getStepData(step.id)
                   
@@ -233,6 +233,35 @@ export function ReviewStep() {
                               )}
                             </div>
                           )}
+
+                          {/* Structured Data Display */}
+                          {(() => {
+                            const structuredData = getStructuredData(step.id)
+                            // Filter out empty values for display only
+                            const nonEmptyData = structuredData ? Object.fromEntries(
+                              Object.entries(structuredData).filter(([, value]) => value && value.trim() !== '')
+                            ) : {}
+                            
+                            return Object.keys(nonEmptyData).length > 0 ? (
+                              <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                                <h4 className="text-sm font-semibold mb-2 text-blue-900 dark:text-blue-100">
+                                  Extracted Label Information:
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {Object.entries(nonEmptyData).map(([key, value]) => (
+                                    <div key={key} className="flex justify-between items-center">
+                                      <span className="text-sm font-medium text-blue-800 dark:text-blue-200 capitalize">
+                                        {key.replace(/([A-Z])/g, ' $1').trim()}:
+                                      </span>
+                                      <span className="text-sm font-mono text-blue-900 dark:text-blue-100 bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">
+                                        {value}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null
+                          })()}
 
                           {/* Image Preview */}
                           {data?.imageUploaded && step.stepType !== 'data-entry' && (
