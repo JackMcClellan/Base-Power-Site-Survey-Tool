@@ -296,31 +296,44 @@ Click "Create bucket"
 - Click "Manage variables"
 
 #### Add these environment variables:
+**⚠️ IMPORTANT: Variables marked with (Required) MUST be set. The build will fail if any required variables are missing.**
+
 Click "Add variable" for each:
 
-1. **DATABASE_URL**
+**Required Variables:**
+
+1. **DATABASE_URL** (Required)
    - Value: `postgresql://postgres:[YOUR_RDS_PASSWORD]@[YOUR_RDS_ENDPOINT]:5432/basepowersurvey`
    - (You'll update this after RDS is ready)
 
-2. **DATABASE_SSL**
-   - Value: `true`
-
-3. **AWS_REGION**
+2. **APP_AWS_REGION** (Required)
    - Value: `us-east-2`
+   - Note: We use `APP_` prefix because AWS reserves the `AWS_` prefix
 
-4. **AWS_ACCESS_KEY_ID**
+3. **APP_AWS_ACCESS_KEY_ID** (Required)
    - Value: [Your IAM access key ID]
 
-5. **AWS_SECRET_ACCESS_KEY**
+4. **APP_AWS_SECRET_ACCESS_KEY** (Required)
    - Value: [Your IAM secret access key]
 
-6. **S3_BUCKET_NAME**
+5. **S3_BUCKET_NAME** (Required)
    - Value: `mcclellan-basepower-survey-images`
 
-7. **NEXT_PUBLIC_APP_URL**
+6. **OPENAI_API_KEY** (Required)
+   - Value: [Your OpenAI API key from OpenAI dashboard]
+
+**Optional Variables:**
+
+7. **DATABASE_SSL** (Optional, defaults to false)
+   - Value: `true` (recommended for AWS RDS)
+
+8. **NEXT_PUBLIC_APP_URL** (Optional)
    - Value: (Leave empty for now, will update after first deploy)
+   - This will be: `https://[branch-name].[app-id].amplifyapp.com`
 
 Click "Save" after adding all variables
+
+**Note:** The application uses strict environment variable validation. If any required variables are missing, the build will fail with a clear error message listing the missing variables.
 
 ---
 

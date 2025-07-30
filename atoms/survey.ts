@@ -16,6 +16,16 @@ export const currentStepAtom = atom<number>(0)
 // Survey ID provider atom
 export const surveyIdAtom = atom<string | null>(null)
 
+// Retake mode atom - tracks if user is retaking from review
+export const retakeModeAtom = atom<{
+  isRetaking: boolean
+  returnToReview: boolean
+  originalStep?: number
+}>({
+  isRetaking: false,
+  returnToReview: false
+})
+
 // Simple validation result for UI feedback
 interface ValidationResult {
   passed: boolean

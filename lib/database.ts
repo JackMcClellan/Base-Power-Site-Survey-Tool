@@ -1,15 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { PrismaClient, Prisma } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
+import { env } from './env'
 
 // Prisma client singleton
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient()
+// Configure Prisma with SSL if needed
+const prismaOptions: ConstructorParameters<typeof PrismaClient>[0] = env.DATABASE_SSL 
+  ? {
+      datasources: {
+        db: {
+          url: `${env.DATABASE_URL}${env.DATABASE_URL.includes('?') ? '&' : '?'}sslmode=require`
+        }
+      }
+    }
+  : {}
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+export const prisma = globalForPrisma.prisma ?? new PrismaClient(prismaOptions)
+
+if (env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 // Validation schemas (much simpler now!)
 export const CreateSurveySchema = z.object({

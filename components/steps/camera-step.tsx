@@ -27,7 +27,9 @@ import {
   surveyProgressAtom, 
   nextStepAtom, 
   saveStepDataAtom,
-  surveyDataAtom
+  surveyDataAtom,
+  retakeModeAtom,
+  currentStepAtom
 } from '@/atoms/survey'
 
 
@@ -36,9 +38,12 @@ export function CameraStep() {
   const currentStep = useAtomValue(currentStepDataAtom)
   const progress = useAtomValue(surveyProgressAtom)
   const surveyData = useAtomValue(surveyDataAtom)
+  const retakeMode = useAtomValue(retakeModeAtom)
   const nextStep = useSetAtom(nextStepAtom)
+  const setCurrentStep = useSetAtom(currentStepAtom)
+  const setRetakeMode = useSetAtom(retakeModeAtom)
   const saveStepData = useSetAtom(saveStepDataAtom)
-  const { updateCurrentStep, uploadImage } = useSurveyBackend()
+  const { updateCurrentStep, uploadImage, surveyId } = useSurveyBackend()
   
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [isAnalyzingCapture, setIsAnalyzingCapture] = useState(false)
@@ -107,25 +112,75 @@ export function CameraStep() {
     }
   }, [currentStep.id])
 
-  // For data entry steps, analyze the related image automatically
+  // For data entry steps, fetch and analyze the related image automatically
   useEffect(() => {
-    if (isDataEntryStep && relatedStepImage && !analysisResult) {
-      analyzeRelatedImage()
+    if (isDataEntryStep && currentStep.dataEntryConfig?.relatedStepId && surveyId && !analysisResult && !isLoadingRelatedImage) {
+      fetchAndAnalyzeRelatedImage()
     }
-  }, [isDataEntryStep, relatedStepImage, currentStep.id])
+  }, [isDataEntryStep, currentStep.dataEntryConfig?.relatedStepId, currentStep.id, surveyId])
 
-  const analyzeRelatedImage = useCallback(async () => {
-    if (!relatedStepImage) return
+  const fetchAndAnalyzeRelatedImage = useCallback(async () => {
+    if (!currentStep.dataEntryConfig?.relatedStepId || !surveyId) return
     
     setIsAnalyzingCapture(true)
     setIsLoadingRelatedImage(true)
     
     try {
-      // Convert data URL to blob
-      const response = await fetch(relatedStepImage)
-      const blob = await response.blob()
+      // Step 1: Fetch image URLs from S3
+      const imageResponse = await fetch(`/api/images/${surveyId}`)
       
-      // Create form data for API upload
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch images: ${imageResponse.status}`)
+      }
+      
+      const imageResult = await imageResponse.json()
+      
+      if (!imageResult.success || !imageResult.data?.urls) {
+        throw new Error('No images found')
+      }
+      
+      console.log('Available image URLs:', Object.keys(imageResult.data.urls))
+      
+      // Find the related step's image URL
+      const relatedStepId = currentStep.dataEntryConfig.relatedStepId
+      let relatedImageUrl = null
+      
+      // The keys are full S3 paths like "surveys/userId/step-10/timestamp-step-10-meter_photo-timestamp.jpg"
+      // We need to check if the key contains both the step ID and 'meter_photo' in the path
+      for (const [key, url] of Object.entries(imageResult.data.urls)) {
+        // Check if this key is for the related step and is a meter photo
+        if (key.includes(`/step-${relatedStepId}/`) && key.includes('-meter_photo-')) {
+          relatedImageUrl = url as string
+          break
+        }
+      }
+      
+      // Fallback: Also check for keys that might be stored differently
+      if (!relatedImageUrl) {
+        // Try to find any key that contains the step number
+        for (const [key, url] of Object.entries(imageResult.data.urls)) {
+          if (key.includes(`step-${relatedStepId}`) || key.includes(`step_${relatedStepId}`)) {
+            console.log(`Found image with alternate key pattern: ${key}`)
+            relatedImageUrl = url as string
+            break
+          }
+        }
+      }
+      
+      if (!relatedImageUrl) {
+        console.error(`No image found for step ${relatedStepId}. Available keys:`, Object.keys(imageResult.data.urls))
+        throw new Error(`No image found for step ${currentStep.dataEntryConfig.relatedStepId}. Please ensure step ${relatedStepId} has been completed and the image was uploaded successfully.`)
+      }
+      
+      // Step 2: Fetch the image from S3
+      const imageDataResponse = await fetch(relatedImageUrl)
+      if (!imageDataResponse.ok) {
+        throw new Error('Failed to fetch image from S3')
+      }
+      
+      const blob = await imageDataResponse.blob()
+      
+      // Step 3: Send to AI for analysis
       const formData = new FormData()
       formData.append('image', blob, 'related-image.jpg')
       formData.append('step', `data-entry-${currentStep.id}`)
@@ -173,9 +228,9 @@ export function CameraStep() {
         }
       })
     }
-  }, [relatedStepImage, currentStep.id, currentStep.aiConfig])
+  }, [currentStep.dataEntryConfig?.relatedStepId, currentStep.id, currentStep.aiConfig, surveyId])
 
-  const handleDataEntrySubmit = useCallback(async () => {
+  const handleDataEntrySubmit = async () => {
     const cleanValue = dataEntryValue.replace(/[^0-9]/g, '')
     
     if (!cleanValue || currentStep.dataEntryConfig?.validation) {
@@ -208,20 +263,39 @@ export function CameraStep() {
     
     saveStepData(currentStep.id, stepData)
     
-    // Update backend with new step and data entry value
-    const nextStepNumber = progress.currentId + 1
-    await updateCurrentStep({ 
-      step: nextStepNumber,
-      stepData: {
-        [`step_${currentStep.id}`]: {
-          ...stepData,
-          enteredValue: `${cleanValue}A`
+    // Check if in retake mode
+    if (retakeMode.isRetaking && retakeMode.returnToReview) {
+      // Don't update backend step number during retake
+      await updateCurrentStep({ 
+        step: progress.currentId, // Keep the same step number
+        stepData: {
+          [`step_${currentStep.id}`]: {
+            ...stepData,
+            enteredValue: `${cleanValue}A`
+          }
         }
-      }
-    })
-    
-    nextStep()
-  }, [dataEntryValue, currentStep, analysisResult, saveStepData, nextStep, updateCurrentStep, progress.currentId])
+      })
+      
+      // Clear retake mode and return to review
+      setRetakeMode({ isRetaking: false, returnToReview: false })
+      const reviewStepNumber = progress.total + 1 // Review is after all survey steps
+      setCurrentStep(reviewStepNumber)
+    } else {
+      // Normal flow - update backend with new step and data entry value
+      const nextStepNumber = progress.currentId + 1
+      await updateCurrentStep({ 
+        step: nextStepNumber,
+        stepData: {
+          [`step_${currentStep.id}`]: {
+            ...stepData,
+            enteredValue: `${cleanValue}A`
+          }
+        }
+      })
+      
+      nextStep()
+    }
+  }
 
 
 
@@ -563,36 +637,68 @@ export function CameraStep() {
 
         saveStepData(currentStep.id, stepData)
         
-        // Update backend with new step
-        const nextStepNumber = progress.currentId + 1
-        await updateCurrentStep({ 
-          step: nextStepNumber,
-          stepData: {
-            [`step_${currentStep.id}`]: {
-              ...stepData,
-              extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null
+        // Update backend - if in retake mode, don't advance step
+        if (retakeMode.isRetaking && retakeMode.returnToReview) {
+          // Just update the step data without changing step number
+          await updateCurrentStep({ 
+            step: progress.currentId, // Keep the same step number
+            stepData: {
+              [`step_${currentStep.id}`]: {
+                ...stepData,
+                extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null
+              }
             }
-          }
-        })
+          })
+        } else {
+          // Normal flow - update backend with new step
+          const nextStepNumber = progress.currentId + 1
+          await updateCurrentStep({ 
+            step: nextStepNumber,
+            stepData: {
+              [`step_${currentStep.id}`]: {
+                ...stepData,
+                extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null
+              }
+            }
+          })
+        }
       } else {
         console.log('Data already auto-saved, just moving to next step')
         
-        // Just update to the next step
-        const nextStepNumber = progress.currentId + 1
-        await updateCurrentStep({ 
-          step: nextStepNumber
-        })
+        // In retake mode, don't update step number
+        if (!retakeMode.isRetaking || !retakeMode.returnToReview) {
+          // Just update to the next step
+          const nextStepNumber = progress.currentId + 1
+          await updateCurrentStep({ 
+            step: nextStepNumber
+          })
+        }
       }
       
       // Clear captured image before moving to next step
       setCapturedImage(null)
       setAnalysisResult(null)
       
-      nextStep()
+      // Check if in retake mode
+      if (retakeMode.isRetaking && retakeMode.returnToReview) {
+        // Clear retake mode and return to review
+        setRetakeMode({ isRetaking: false, returnToReview: false })
+        const reviewStepNumber = progress.total + 1 // Review is after all survey steps
+        setCurrentStep(reviewStepNumber)
+      } else {
+        nextStep()
+      }
     } catch (error) {
       console.error('Failed to proceed:', error)
       // Still allow navigation even if backend fails
-      nextStep()
+      if (retakeMode.isRetaking && retakeMode.returnToReview) {
+        // Clear retake mode and return to review
+        setRetakeMode({ isRetaking: false, returnToReview: false })
+        const reviewStepNumber = progress.total + 1 // Review is after all survey steps
+        setCurrentStep(reviewStepNumber)
+      } else {
+        nextStep()
+      }
     }
   }, [capturedImage, analysisResult, currentStep.id, currentStep.title, saveStepData, nextStep, retryCount, uploadImage, updateCurrentStep, progress.currentId, surveyData.stepData])
 
@@ -617,17 +723,33 @@ export function CameraStep() {
     
     saveStepData(currentStep.id, stepData)
     
-    // Update backend with new step
-    const nextStepNumber = progress.currentId + 1
-    await updateCurrentStep({ 
-      step: nextStepNumber,
-      stepData: {
-        [`step_${currentStep.id}`]: stepData
-      }
-    })
-    
-    nextStep()
-  }, [currentStep.id, currentStep.title, saveStepData, nextStep, updateCurrentStep, progress.currentId])
+    // Check if in retake mode
+    if (retakeMode.isRetaking && retakeMode.returnToReview) {
+      // Just update the step data without changing step number
+      await updateCurrentStep({ 
+        step: progress.currentId, // Keep the same step number
+        stepData: {
+          [`step_${currentStep.id}`]: stepData
+        }
+      })
+      
+      // Clear retake mode and return to review
+      setRetakeMode({ isRetaking: false, returnToReview: false })
+      const reviewStepNumber = progress.total + 1 // Review is after all survey steps
+      setCurrentStep(reviewStepNumber)
+    } else {
+      // Normal flow - update backend with new step
+      const nextStepNumber = progress.currentId + 1
+      await updateCurrentStep({ 
+        step: nextStepNumber,
+        stepData: {
+          [`step_${currentStep.id}`]: stepData
+        }
+      })
+      
+      nextStep()
+    }
+  }, [currentStep.id, currentStep.title, saveStepData, nextStep, updateCurrentStep, progress.currentId, retakeMode, setRetakeMode, setCurrentStep, progress.total])
 
 
 

@@ -192,11 +192,22 @@ export async function PATCH(
     const { uuid } = await params
     const body = await request.json()
 
+    console.log('PATCH /api/survey/[uuid] - Complete survey request:', {
+      uuid,
+      body,
+    })
+
     const uuidSchema = z.string().uuid()
     const validatedUuid = uuidSchema.parse(uuid)
     const validatedBody = CompleteSurveySchema.parse(body)
 
     const existingSurvey = await SurveyRepository.findByUserId(validatedUuid)
+    
+    console.log('Existing survey:', {
+      found: !!existingSurvey,
+      status: existingSurvey?.status,
+      id: existingSurvey?.id,
+    })
     
     if (!existingSurvey) {
       return NextResponse.json(
@@ -230,7 +241,15 @@ export async function PATCH(
       }
     }
 
+    console.log('Updating survey with data:', updateData)
+
     const completedSurvey = await SurveyRepository.update(validatedUuid, updateData)
+
+    if (!completedSurvey) {
+      throw new Error('Failed to update survey - no survey returned')
+    }
+
+    console.log('Survey completed successfully:', completedSurvey.id)
 
     return NextResponse.json({
       success: true,

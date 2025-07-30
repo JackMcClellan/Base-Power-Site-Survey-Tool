@@ -7,19 +7,26 @@ This guide will help you set up the environment variables and configuration need
 Create a `.env.local` file in the root directory with the following variables:
 
 ```env
+# Required Variables
 # Database Configuration
 DATABASE_URL="postgresql://username:password@hostname:5432/database_name"
-DATABASE_SSL=true
 
-# AWS Configuration
-AWS_REGION="us-east-1"
-AWS_ACCESS_KEY_ID="your_aws_access_key_id"
-AWS_SECRET_ACCESS_KEY="your_aws_secret_access_key"
+# AWS Configuration (All required)
+# Note: We use APP_ prefix because AWS_ is reserved in AWS Amplify
+APP_AWS_REGION="us-east-1"
+APP_AWS_ACCESS_KEY_ID="your_aws_access_key_id"
+APP_AWS_SECRET_ACCESS_KEY="your_aws_secret_access_key"
 S3_BUCKET_NAME="survey-images-bucket"
 
-# Application Configuration
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
+# OpenAI Configuration (Required)
+OPENAI_API_KEY="your_openai_api_key_here"
+
+# Optional Variables
+DATABASE_SSL=true  # Recommended for cloud databases
+NEXT_PUBLIC_APP_URL="http://localhost:3000"  # Will be set after deployment
 ```
+
+**Note:** The application enforces strict environment variable validation at build time. Missing required variables will cause the build to fail with a clear error message.
 
 ## Database Setup Options
 

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { surveyDataAtom, currentStepAtom } from '@/atoms/survey'
+import { surveyDataAtom, currentStepAtom, retakeModeAtom } from '@/atoms/survey'
 import { SurveyHeader } from '@/components/shared/survey-header'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,7 @@ interface SurveyDataFromBackend {
 export function ReviewStep() {
   const surveyData = useAtomValue(surveyDataAtom)
   const setCurrentStep = useSetAtom(currentStepAtom)
+  const setRetakeMode = useSetAtom(retakeModeAtom)
   const [showThankYou, setShowThankYou] = useState(false)
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
   const [isLoadingImages, setIsLoadingImages] = useState(true)
@@ -113,17 +114,21 @@ export function ReviewStep() {
         setShowThankYou(true)
       } else {
         console.error('Failed to complete survey in backend')
-        // Still show thank you page even if backend fails
-        setShowThankYou(true)
+        alert('Failed to complete survey. Please try again or contact support if the issue persists.')
       }
     } catch (error) {
       console.error('Error completing survey:', error)
-      // Still show thank you page even if backend fails
-      setShowThankYou(true)
+      alert(`Error completing survey: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
   const handleRetakePhoto = (stepId: number) => {
+    // Set retake mode before navigating
+    setRetakeMode({
+      isRetaking: true,
+      returnToReview: true,
+      originalStep: stepId
+    })
     // Navigate back to the specific step
     setCurrentStep(stepId)
   }

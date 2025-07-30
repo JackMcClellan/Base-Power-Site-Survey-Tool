@@ -177,6 +177,9 @@ export function useSurveyBackend() {
 
     setSyncing(true)
     try {
+      console.log('Completing survey with options:', options)
+      console.log('Survey ID:', surveyId)
+      
       const response = await fetch(`/api/survey/${surveyId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -186,11 +189,20 @@ export function useSurveyBackend() {
         }),
       })
 
+      console.log('Complete survey response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      })
+
       if (!response.ok) {
-        throw new Error(`Failed to complete survey: ${response.status}`)
+        const errorText = await response.text()
+        console.error('Complete survey error response:', errorText)
+        throw new Error(`Failed to complete survey: ${response.status} ${response.statusText}`)
       }
 
       const result = await response.json()
+      console.log('Complete survey result:', result)
       return result.success
     } catch (error) {
       console.error('Error completing survey:', error)

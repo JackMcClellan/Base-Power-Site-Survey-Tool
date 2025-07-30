@@ -106,10 +106,10 @@ CREATE INDEX idx_surveys_status ON surveys(status);
 DATABASE_URL="postgresql://username:password@rds-endpoint:5432/surveys"
 DATABASE_SSL=true
 
-# AWS Configuration
-AWS_REGION="us-east-2"
-AWS_ACCESS_KEY_ID="..."
-AWS_SECRET_ACCESS_KEY="..."
+# AWS Configuration (Note: APP_ prefix required for AWS Amplify)
+APP_AWS_REGION="us-east-2"
+APP_AWS_ACCESS_KEY_ID="..."
+APP_AWS_SECRET_ACCESS_KEY="..."
 S3_BUCKET_NAME="base-power-survey-preview-survey-images"
 
 # Application

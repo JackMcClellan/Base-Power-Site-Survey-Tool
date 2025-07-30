@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+import { env } from '@/lib/env'
 
 // Types for clarity
 interface AnalysisResponse {
@@ -27,13 +23,10 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now()
   
   try {
-    // 1. Validate prerequisites
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json(
-        { error: 'AI analysis service not configured' },
-        { status: 500 }
-      )
-    }
+    // Initialize OpenAI client inside the handler
+    const openai = new OpenAI({
+      apiKey: env.OPENAI_API_KEY,
+    })
 
     // 2. Extract and validate form data
     const { image, userPrompt, isDataExtraction, error } = await extractFormData(request)
@@ -45,7 +38,7 @@ export async function POST(request: NextRequest) {
     const imageUrl = await prepareImageForOpenAI(image!)
 
     // 4. Get AI analysis
-    const analysisResponse = await analyzeWithOpenAI(imageUrl, userPrompt)
+    const analysisResponse = await analyzeWithOpenAI(openai, imageUrl, userPrompt)
     console.log('OpenAI Response:', JSON.stringify(analysisResponse))
 
     // 5. Process the response based on request type
@@ -73,7 +66,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         error: 'AI analysis failed. Please try again.',
-        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+        details: env.NODE_ENV === 'development' ? errorMessage : undefined
       },
       { status: 500 }
     )
@@ -114,7 +107,7 @@ async function prepareImageForOpenAI(image: File): Promise<string> {
 }
 
 // Call OpenAI Vision API
-async function analyzeWithOpenAI(imageUrl: string, userPrompt?: string): Promise<AnalysisResponse> {
+async function analyzeWithOpenAI(openai: OpenAI, imageUrl: string, userPrompt?: string): Promise<AnalysisResponse> {
   const analysisPrompt = userPrompt || 'Please analyze this image for survey suitability.'
   
   const systemPrompt = `You are an expert electrical system analyst specializing in battery system installations. 
@@ -131,7 +124,7 @@ For validation:
 - Set "isValid" to false if the image doesn't show the requested content, is unclear, or unsuitable
 - In "description", explain what you see and why it is or isn't valid
 - If asked to extract a specific value (like amperage), include it in "extractedValue"`
-
+  
   const completion = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [

@@ -1,17 +1,20 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { z } from 'zod'
+import { env } from './env'
 
-// Initialize S3 client
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-  },
-})
+// Get S3 client instance
+function getS3Client() {
+  return new S3Client({
+    region: env.AWS_REGION,
+    credentials: {
+      accessKeyId: env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+    },
+  })
+}
 
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'survey-images-bucket'
+const BUCKET_NAME = env.S3_BUCKET_NAME
 
 // Validation schemas
 export const UploadRequestSchema = z.object({
@@ -34,6 +37,66 @@ export function generateS3Key(userId: string, fileName: string, folder: 'photos'
   // Clean fileName to ensure S3 compatibility
   const cleanFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
   return `${userId}/${folder}/${cleanFileName}`
+}
+
+// Generate a presigned URL for secure uploads
+export async function generatePresignedUploadUrl({
+  userId,
+  stepId,
+  fileName,
+  contentType,
+}: z.infer<typeof UploadRequestSchema>) {
+  const s3Client = getS3Client()
+  const key = `surveys/${userId}/step-${stepId}/${Date.now()}-${fileName}`
+
+  const command = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    ContentType: contentType,
+  })
+
+  const presignedUrl = await getSignedUrl(s3Client, command, {
+    expiresIn: 3600, // 1 hour
+  })
+
+  return { presignedUrl, key }
+}
+
+// Generate a presigned URL for downloads
+export async function generatePresignedDownloadUrl({
+  userId,
+  fileName,
+}: z.infer<typeof DownloadRequestSchema>) {
+  const s3Client = getS3Client()
+  const key = generateS3Key(userId, fileName)
+  const command = new GetObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+  })
+
+  const presignedUrl = await getSignedUrl(s3Client, command, {
+    expiresIn: 3600, // 1 hour
+  })
+
+  return presignedUrl
+}
+
+// Direct upload utility (server-side only)
+export async function uploadToS3(
+  buffer: Buffer,
+  key: string,
+  contentType: string
+) {
+  const s3Client = getS3Client()
+  const command = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+  })
+
+  await s3Client.send(command)
+  return key
 }
 
 // Generate pre-signed URL for file upload
@@ -61,6 +124,7 @@ export async function generateUploadUrl(request: UploadRequest): Promise<{
     })
     
     // Generate pre-signed URL (15 minutes expiry)
+    const s3Client = getS3Client()
     const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 15 * 60 })
     
     return {
@@ -93,6 +157,7 @@ export async function generateDownloadUrl(request: DownloadRequest): Promise<{
     })
     
     // Generate pre-signed URL (60 minutes expiry for review)
+    const s3Client = getS3Client()
     const downloadUrl = await getSignedUrl(s3Client, command, { expiresIn: 60 * 60 })
     
     return {
@@ -124,6 +189,7 @@ export async function generateReviewUrls(userId: string, fileNames: string[]): P
           Key: fileName,
         })
         
+        const s3Client = getS3Client()
         const downloadUrl = await getSignedUrl(s3Client, command, { expiresIn: 60 * 60 })
         urls[fileName] = downloadUrl
       } else {
