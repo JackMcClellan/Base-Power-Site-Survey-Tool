@@ -1,5 +1,12 @@
 import { atom } from 'jotai'
-import { MeterDetectionResult } from '@/lib/meter-detection'
+// Simple analysis result interface
+interface AnalysisResult {
+  overall: {
+    passed: boolean
+    confidence: number
+    message: string
+  }
+}
 import { SURVEY_STEPS, type SurveyStep } from '@/config/survey-steps'
 
 // Survey step state - starts at 0 for welcome page
@@ -144,7 +151,7 @@ export const surveyDataAtom = atom<{
 export const surveyStepsAtom = atom<SurveyStep[]>(SURVEY_STEPS)
 
 // Export types for use in components
-export type { SurveyStep, OverlayDefinition, AIConfig } from '@/config/survey-steps'
+export type { SurveyStep, AIConfig } from '@/config/survey-steps'
 export type { SurveyStepData, ValidationResult }
 
 // Derived atoms
@@ -257,11 +264,11 @@ export const saveSurveyDataAtom = atom(
 // Real validation atom using vision system
 export const validateStepDataAtom = atom(
   null,
-  async (get, set, stepId: number, detectionResult: MeterDetectionResult | null, stepType: string) => {
-    // detectionResult should be a MeterDetectionResult from the vision system
+  async (get, set, stepId: number, detectionResult: AnalysisResult | null, stepType: string) => {
+    // detectionResult should be an AnalysisResult from the vision system
     // Transform the detection result to match the survey validation structure
     
-    if (!detectionResult || !detectionResult.checks) {
+    if (!detectionResult) {
       // Fallback for invalid detection results
       const fallbackValidation: SurveyStepData['validationResults'] = {
         overall: {
@@ -275,10 +282,10 @@ export const validateStepDataAtom = atom(
       return fallbackValidation
     }
     
-    // Transform MeterDetectionResult to SurveyStepData validation format
+    // Transform AnalysisResult to SurveyStepData validation format
     const visionValidation: SurveyStepData['validationResults'] = {
       overall: detectionResult.overall,
-      checks: detectionResult.checks
+      checks: {}
     }
     
     return visionValidation

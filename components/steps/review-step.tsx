@@ -15,7 +15,6 @@ export function ReviewStep() {
   const [showThankYou, setShowThankYou] = useState(false)
   
   // All steps in the configuration are now camera steps
-  const actualSteps = steps
   const completedSteps = surveyData.completedSteps
   const stepData = surveyData.stepData
 
@@ -112,8 +111,28 @@ export function ReviewStep() {
                         </div>
                       </div>
 
-                      {/* Image Preview */}
-                      {data.imageData && (
+                      {/* Data Entry Display */}
+                      {step.stepType === 'data-entry' && data.data?.amperage && (
+                        <div className="mb-4 p-4 bg-muted rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-muted-foreground">Main Disconnect Amperage</p>
+                              <p className="text-2xl font-bold">{data.data.amperage}A</p>
+                            </div>
+                            {data.data.extractedValue && (
+                              <Badge variant="secondary" className="ml-2">
+                                AI Detected
+                              </Badge>
+                            )}
+                          </div>
+                          {data.action === 'skip' && (
+                            <p className="text-sm text-muted-foreground mt-2">No value entered</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Image Preview - Don't show for data entry steps unless they have their own image */}
+                      {data.imageData && step.stepType !== 'data-entry' && (
                         <div className="space-y-3">
                           <img 
                             src={data.imageData} 
@@ -128,6 +147,18 @@ export function ReviewStep() {
                             Retake Photo
                           </Button>
                         </div>
+                      )}
+
+                      {/* For data entry steps, show option to re-enter */}
+                      {step.stepType === 'data-entry' && (
+                        <Button
+                          onClick={() => handleRetakePhoto(stepId)}
+                          variant="outline"
+                          size="sm"
+                          className="mt-2"
+                        >
+                          Edit Value
+                        </Button>
                       )}
                     </div>
                   )
