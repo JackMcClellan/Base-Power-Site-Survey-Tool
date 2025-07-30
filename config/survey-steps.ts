@@ -50,159 +50,159 @@ export const SURVEY_STEPS: SurveyStep[] = [
       userPrompt: "Does the image contain an object that is identifiable as an electricity meter (circular or rectangular, with a glass/plastic cover and visible dials or digital display)? Is there visible text or numbers on the face of the meter? Is the image sharp and not blurry? Is the meter the primary subject, filling a significant portion of the frame?"
     }
   },
-  // {
-  //   id: 2,
-  //   title: 'Area Around Meter (Wide Shot)',
-  //   description: 'Capture a wide view showing the meter and surrounding area',
-  //   instructions: "Now, please take about 10 steps back from the wall and take a wide photo showing the entire area around the meter.",
+  {
+    id: 2,
+    title: 'Area Around Meter (Wide Shot)',
+    description: 'Capture a wide view showing the meter and surrounding area',
+    instructions: "Now, please take about 10 steps back from the wall and take a wide photo showing the entire area around the meter.",
     
-  //   tips: [
-  //     'Step back 10 steps from the meter',
-  //     'Include the ground, wall, and meter in frame',
-  //     'Show any potential obstructions like windows, doors, or utility boxes',
-  //     'Capture the building exterior context'
-  //   ],
+    tips: [
+      'Step back 10 steps from the meter',
+      'Include the ground, wall, and meter in frame',
+      'Show any potential obstructions like windows, doors, or utility boxes',
+      'Capture the building exterior context'
+    ],
     
-  //   cameraConfig: {},
+    cameraConfig: {},
     
-  //   aiConfig: {
-  //     userPrompt: "Is the previously identified meter visible within a wider shot of a building's exterior wall? Does the image show the ground, the wall, and any potential obstructions like windows, doors, or other utility boxes near the meter?"
-  //   }
-  // },
-  // {
-  //   id: 3,
-  //   title: 'Area to the RIGHT of Meter',
-  //   description: 'Capture the wall and space to the right of the meter',
-  //   instructions: "Staying where you are, please pan your camera to the right and capture the wall and any open space next to the meter.",
+    aiConfig: {
+      userPrompt: "Is the previously identified meter visible within a wider shot of a building's exterior wall? Does the image show the ground, the wall, and any potential obstructions like windows, doors, or other utility boxes near the meter?"
+    }
+  },
+  {
+    id: 3,
+    title: 'Area to the RIGHT of Meter',
+    description: 'Capture the wall and space to the right of the meter',
+    instructions: "Staying where you are, please pan your camera to the right and capture the wall and any open space next to the meter.",
     
-  //   tips: [
-  //     'Stay in the same position as the wide shot',
-  //     'Pan camera to the right of the meter',
-  //     'Show the exterior wall and adjacent ground space',
-  //     'Capture any obstacles or features in this area'
-  //   ],
+    tips: [
+      'Stay in the same position as the wide shot',
+      'Pan camera to the right of the meter',
+      'Show the exterior wall and adjacent ground space',
+      'Capture any obstacles or features in this area'
+    ],
     
-  //   cameraConfig: {},
+    cameraConfig: {},
     
-  //   aiConfig: {
-  //     userPrompt: "Does the image show an exterior wall and adjacent ground space? Is it different from the previous wide shot? Does it capture the area to the right side of where the meter would be located?"
-  //   }
-  // },
-  // {
-  //   id: 4,
-  //   title: 'Area to the LEFT of Meter',
-  //   description: 'Capture the wall and space to the left of the meter',
-  //   instructions: "Great. Now, please pan to the left and capture the wall and space on the other side of the meter.",
+    aiConfig: {
+      userPrompt: "Does the image show an exterior wall and adjacent ground space? Is it different from the previous wide shot? Does it capture the area to the right side of where the meter would be located?"
+    }
+  },
+  {
+    id: 4,
+    title: 'Area to the LEFT of Meter',
+    description: 'Capture the wall and space to the left of the meter',
+    instructions: "Great. Now, please pan to the left and capture the wall and space on the other side of the meter.",
     
-  //   tips: [
-  //     'Stay in the same position',
-  //     'Pan camera to the left of the meter',
-  //     'Show the exterior wall and adjacent ground space',
-  //     'Ensure this is different from the previous shots'
-  //   ],
+    tips: [
+      'Stay in the same position',
+      'Pan camera to the left of the meter',
+      'Show the exterior wall and adjacent ground space',
+      'Ensure this is different from the previous shots'
+    ],
     
-  //   cameraConfig: {},
+    cameraConfig: {},
     
-  //   aiConfig: {
-  //     userPrompt: "Does the image show an exterior wall and adjacent ground space? Is it different from the two previous shots? Does it capture the area to the left side of where the meter would be located?"
-  //   }
-  // },
-  // {
-  //   id: 5,
-  //   title: 'Adjacent Wall / Side Yard',
-  //   description: 'Show the entire side wall of the house',
-  //   instructions: "Let's see the whole side of the house. Please take a photo from corner to corner to show the entire wall.",
+    aiConfig: {
+      userPrompt: "Does the image show an exterior wall and adjacent ground space? Is it different from the two previous shots? Does it capture the area to the left side of where the meter would be located?"
+    }
+  },
+  {
+    id: 5,
+    title: 'Adjacent Wall / Side Yard',
+    description: 'Show the entire side wall of the house',
+    instructions: "Let's see the whole side of the house. Please take a photo from corner to corner to show the entire wall.",
     
-  //   tips: [
-  //     'Step back to capture the full wall length',
-  //     'Include house corners if possible',
-  //     'Show the entire exterior wall expanse',
-  //     'Capture ground area in front of the wall'
-  //   ],
+    tips: [
+      'Step back to capture the full wall length',
+      'Include house corners if possible',
+      'Show the entire exterior wall expanse',
+      'Capture ground area in front of the wall'
+    ],
     
-  //   cameraConfig: {},
+    cameraConfig: {},
     
-  //   aiConfig: {
-  //     userPrompt: "Does the image show a long expanse of an exterior wall, likely including a corner of the house? Is the full side wall visible from corner to corner?"
-  //   }
-  // },
-  // {
-  //   id: 6,
-  //   title: 'Area Behind Fence (Conditional)',
-  //   description: 'Show the space behind any fence if present',
-  //   instructions: "If there is a fence on this side of the house, please take a photo of the area behind it.",
+    aiConfig: {
+      userPrompt: "Does the image show a long expanse of an exterior wall, likely including a corner of the house? Is the full side wall visible from corner to corner?"
+    }
+  },
+  {
+    id: 6,
+    title: 'Area Behind Fence (Conditional)',
+    description: 'Show the space behind any fence if present',
+    instructions: "If there is a fence on this side of the house, please take a photo of the area behind it.",
     
-  //   tips: [
-  //     'Only take this photo if a fence is present',
-  //     'Show the space between fence and house wall',
-  //     'Capture any access points or gates',
-  //     'Include fence condition and height'
-  //   ],
+    tips: [
+      'Only take this photo if a fence is present',
+      'Show the space between fence and house wall',
+      'Capture any access points or gates',
+      'Include fence condition and height'
+    ],
     
-  //   cameraConfig: {},
+    cameraConfig: {},
     
-  //   aiConfig: {
-  //     userPrompt: "Does the image contain a fence? Does the image show the space between the fence and the house wall? If no fence is present, is this image skippable for the survey?"
-  //   }
-  // },
-  // {
-  //   id: 7,
-  //   title: 'A/C Unit Label',
-  //   description: 'Capture the technical label on your A/C unit',
-  //   instructions: "Please find the label on your A/C unit. We need a clear, close-up photo where the 'LRA' number is readable.",
+    aiConfig: {
+      userPrompt: "Does the image contain a fence? Does the image show the space between the fence and the house wall? If no fence is present, is this image skippable for the survey?"
+    }
+  },
+  {
+    id: 7,
+    title: 'A/C Unit Label',
+    description: 'Capture the technical label on your A/C unit',
+    instructions: "Please find the label on your A/C unit. We need a clear, close-up photo where the 'LRA' number is readable.",
     
-  //   tips: [
-  //     'Look for a metallic or paper label on the unit',
-  //     'Get close enough to read technical specifications',
-  //     'Ensure good lighting on the label',
-  //     'Look specifically for LRA or RLA numbers'
-  //   ],
+    tips: [
+      'Look for a metallic or paper label on the unit',
+      'Get close enough to read technical specifications',
+      'Ensure good lighting on the label',
+      'Look specifically for LRA or RLA numbers'
+    ],
     
-  //   cameraConfig: {},
+    cameraConfig: {},
     
-  //   aiConfig: {
-  //     userPrompt: "Does the image contain a metallic or paper label with printed technical specifications? Can the AI detect and read text on the label? Specifically, can it identify the acronym 'LRA' or 'RLA'? Is the label the primary subject of the photo?"
-  //   }
-  // },
-  // {
-  //   id: 8,
-  //   title: 'Second A/C Unit Label (Conditional)',
-  //   description: 'Capture the label on your second A/C unit if present',
-  //   instructions: "If you have a second A/C unit, please take a photo of its label as well. If not, you can skip this.",
-  //   skippable: true,  // Add this line to enable skip button
+    aiConfig: {
+      userPrompt: "Does the image contain a metallic or paper label with printed technical specifications? Can the AI detect and read text on the label? Specifically, can it identify the acronym 'LRA' or 'RLA'? Is the label the primary subject of the photo?"
+    }
+  },
+  {
+    id: 8,
+    title: 'Second A/C Unit Label (Conditional)',
+    description: 'Capture the label on your second A/C unit if present',
+    instructions: "If you have a second A/C unit, please take a photo of its label as well. If not, you can skip this.",
+    skippable: true,  // Add this line to enable skip button
     
-  //   tips: [
-  //     'Only take this photo if you have multiple A/C units',
-  //     'Follow the same process as the first unit',
-  //     'Look for LRA or RLA specifications',
-  //     'Ensure the label is clearly readable'
-  //   ],
+    tips: [
+      'Only take this photo if you have multiple A/C units',
+      'Follow the same process as the first unit',
+      'Look for LRA or RLA specifications',
+      'Ensure the label is clearly readable'
+    ],
     
-  //   cameraConfig: {},
+    cameraConfig: {},
     
-  //   aiConfig: {
-  //     userPrompt: "Does the image contain a metallic or paper label with printed technical specifications? Can the AI detect and read text on the label? Specifically, can it identify the acronym 'LRA' or 'RLA'? Is this a different A/C unit from the previous photo?"
-  //   }
-  // },
-  // {
-  //   id: 9,
-  //   title: 'Main Breaker Box (Panel Interior)',
-  //   description: 'Capture the interior of your main electrical panel',
-  //   instructions: "Now, please find your main breaker box. Open the metal door and take a photo of all the switches inside.",
+    aiConfig: {
+      userPrompt: "Does the image contain a metallic or paper label with printed technical specifications? Can the AI detect and read text on the label? Specifically, can it identify the acronym 'LRA' or 'RLA'? Is this a different A/C unit from the previous photo?"
+    }
+  },
+  {
+    id: 9,
+    title: 'Main Breaker Box (Panel Interior)',
+    description: 'Capture the interior of your main electrical panel',
+    instructions: "Now, please find your main breaker box. Open the metal door and take a photo of all the switches inside.",
     
-  //   tips: [
-  //     'Open the panel door safely',
-  //     'Ensure good lighting inside the panel',
-  //     'Capture all rows of breaker switches',
-  //     'Include the main switch at the top'
-  //   ],
+    tips: [
+      'Open the panel door safely',
+      'Ensure good lighting inside the panel',
+      'Capture all rows of breaker switches',
+      'Include the main switch at the top'
+    ],
     
-  //   cameraConfig: {},
+    cameraConfig: {},
     
-  //   aiConfig: {
-  //     userPrompt: "Does the image show the inside of an electrical panel with multiple rows of breaker switches? Is the entire set of breakers visible? Can you identify individual circuit breakers?"
-  //   }
-  // },
+    aiConfig: {
+      userPrompt: "Does the image show the inside of an electrical panel with multiple rows of breaker switches? Is the entire set of breakers visible? Can you identify individual circuit breakers?"
+    }
+  },
   {
     id: 10,
     title: 'Main Disconnect Switch (Close-up)',

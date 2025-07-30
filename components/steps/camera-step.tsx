@@ -8,10 +8,9 @@ import { SurveyInstructions } from '@/components/shared/survey-instructions'
 import { SurveyActions } from '@/components/shared/survey-actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useSurveyBackend } from '@/hooks/use-survey-backend'
 
 // Overlays removed - clean camera view only
-
-import { useCamera } from '@/hooks/use-camera'
 
 // Simple result interface
 interface AnalysisResult {
@@ -27,7 +26,7 @@ import {
   currentStepDataAtom, 
   surveyProgressAtom, 
   nextStepAtom, 
-  saveSurveyDataAtom,
+  saveStepDataAtom,
   surveyDataAtom
 } from '@/atoms/survey'
 
@@ -38,7 +37,8 @@ export function CameraStep() {
   const progress = useAtomValue(surveyProgressAtom)
   const surveyData = useAtomValue(surveyDataAtom)
   const nextStep = useSetAtom(nextStepAtom)
-  const saveSurveyData = useSetAtom(saveSurveyDataAtom)
+  const saveStepData = useSetAtom(saveStepDataAtom)
+  const { updateCurrentStep, uploadImage } = useSurveyBackend()
   
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [isAnalyzingCapture, setIsAnalyzingCapture] = useState(false)
@@ -46,19 +46,18 @@ export function CameraStep() {
   const [retryCount, setRetryCount] = useState(0)
   const [dataEntryValue, setDataEntryValue] = useState<string>('')
   const [isLoadingRelatedImage, setIsLoadingRelatedImage] = useState(false)
+  const [isCameraReady, setIsCameraReady] = useState(false)
+  const canvasBlobRef = useRef<Promise<Blob> | null>(null)
 
-  // Use basic camera hook (no vision requirements for capture)
-  const { cameraStream, cameraStatus, isCameraAvailable } = useCamera()
+  // Remove useCamera hook since CameraView handles it
   
   // Check if this is a data entry step
   const isDataEntryStep = currentStep.stepType === 'data-entry'
   
   // Get related step image for data entry steps
   const relatedStepImage = useMemo(() => {
-    if (isDataEntryStep && currentStep.dataEntryConfig?.relatedStepId) {
-      const relatedData = surveyData.stepData[currentStep.dataEntryConfig.relatedStepId]
-      return relatedData?.imageData || null
-    }
+    // Images are now stored in S3, not in local state
+    // This will need to be fetched from backend when needed
     return null
   }, [isDataEntryStep, currentStep.dataEntryConfig, surveyData])
   
@@ -69,11 +68,6 @@ export function CameraStep() {
   // Video element ref for basic capture
   const videoRef = useRef<HTMLVideoElement | null>(null)
 
-  // Monitor camera state changes  
-  useEffect(() => {
-    // Camera state is tracked but not logged in production
-  }, [cameraStatus, isCameraAvailable, cameraStream, currentStep.id])
-
   // Reset capture state when step changes
   useEffect(() => {
     // Always reset all state when step changes
@@ -83,6 +77,8 @@ export function CameraStep() {
     setRetryCount(0) // Reset retry count for new step
     setDataEntryValue('') // Reset data entry value
     setIsLoadingRelatedImage(false)
+    setIsCameraReady(false) // Reset camera ready state
+    canvasBlobRef.current = null // Clear any stored blob
     
     // Clear video ref to force fresh capture
     if (videoRef.current) {
@@ -107,6 +103,7 @@ export function CameraStep() {
       setCapturedImage(null)
       setAnalysisResult(null)
       videoRef.current = null
+      setIsCameraReady(false)
     }
   }, [currentStep.id])
 
@@ -178,7 +175,7 @@ export function CameraStep() {
     }
   }, [relatedStepImage, currentStep.id, currentStep.aiConfig])
 
-  const handleDataEntrySubmit = useCallback(() => {
+  const handleDataEntrySubmit = useCallback(async () => {
     const cleanValue = dataEntryValue.replace(/[^0-9]/g, '')
     
     if (!cleanValue || currentStep.dataEntryConfig?.validation) {
@@ -198,30 +195,35 @@ export function CameraStep() {
     
     const stepData = {
       timestamp: new Date(),
-      action: 'manual' as const,
-      stepTitle: currentStep.title,
-      data: {
-        amperage: cleanValue,
-        unit: 'A',
-        extractedValue: analysisResult?.extractedValue || undefined,
-        userConfirmed: true
+      action: 'retry' as const,
+      validated: true,
+      validationResult: { 
+        passed: true, 
+        confidence: 1, 
+        message: 'Data entry confirmed by user' 
       },
-      validationResults: {
-        overall: { 
-          passed: true, 
-          confidence: 1, 
-          message: 'Data entry confirmed by user' 
-        },
-        checks: {}
-      },
-      qualityScore: 1,
-      requiresReview: false,
+      imageUploaded: false, // No image for manual entry
       retryCount: 0
     }
     
-    saveSurveyData(currentStep.id, stepData)
+    saveStepData(currentStep.id, stepData)
+    
+    // Update backend with new step and data entry value
+    const nextStepNumber = progress.currentId + 1
+    await updateCurrentStep({ 
+      step: nextStepNumber,
+      stepData: {
+        [`step_${currentStep.id}`]: {
+          ...stepData,
+          enteredValue: `${cleanValue}A`
+        }
+      }
+    })
+    
     nextStep()
-  }, [dataEntryValue, currentStep, analysisResult, saveSurveyData, nextStep])
+  }, [dataEntryValue, currentStep, analysisResult, saveStepData, nextStep, updateCurrentStep, progress.currentId])
+
+
 
   const handleCapture = useCallback(async () => {
     
@@ -246,8 +248,8 @@ export function CameraStep() {
       return
     }
     
-    if (!cameraStream) {
-      console.error('Camera stream not available')
+    if (!isCameraReady) {
+      console.error('Camera not ready yet')
       return
     }
     
@@ -281,13 +283,34 @@ export function CameraStep() {
       // Draw current video frame to canvas
       ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height)
       
+      // Store a reference to the canvas blob conversion function for later use
+      canvasBlobRef.current = new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob)
+          } else {
+            reject(new Error('Canvas toBlob failed'))
+          }
+        }, 'image/jpeg', 0.9)
+      })
+      
       // Add a small watermark with timestamp to verify it's a new capture
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'
       ctx.font = '12px monospace'
       ctx.fillText(`Step ${currentStep.id} - ${new Date().toLocaleTimeString()}`, 10, canvas.height - 10)
       
-      // Convert to base64 data URL with timestamp to prevent caching
+      // Convert to base64 data URL for display
       const imageData = canvas.toDataURL('image/jpeg', 0.9)
+      
+      // Validate the data URL
+      if (!imageData || imageData === 'data:,') {
+        throw new Error('Failed to capture image from camera')
+      }
+      
+      console.log('Image captured:', {
+        dataUrlLength: imageData.length,
+        dataUrlPrefix: imageData.substring(0, 50) + '...'
+      })
       
       // Show captured image to user immediately
       setCapturedImage(imageData)
@@ -332,6 +355,68 @@ export function CameraStep() {
           setAnalysisResult(analysisResult)
           setIsAnalyzingCapture(false)
           
+          // If the image passed validation, automatically save progress
+          if (analysisResult.overall?.passed) {
+            console.log('Image passed validation, auto-saving progress...')
+            
+            // Upload image and save progress automatically
+            try {
+              // Get the blob from canvas reference if available
+              let blob: Blob
+              if (canvasBlobRef.current) {
+                try {
+                  blob = await canvasBlobRef.current
+                  canvasBlobRef.current = null
+                } catch (blobError) {
+                  const response = await fetch(imageData)
+                  blob = await response.blob()
+                }
+              } else {
+                const response = await fetch(imageData)
+                blob = await response.blob()
+              }
+              
+              const file = new File([blob], `step-${currentStep.id}-capture.jpg`, { type: 'image/jpeg' })
+              
+              console.log('Auto-saving: Uploading image to S3...')
+              await uploadImage({
+                file,
+                stepId: currentStep.id,
+                imageType: 'meter_photo'
+              })
+              console.log('Auto-saving: Image uploaded successfully')
+              
+              // Save step data
+              const stepData = {
+                timestamp: new Date(),
+                action: 'capture' as const,
+                validated: true,
+                validationResult: analysisResult.overall,
+                imageUploaded: true,
+                retryCount: retryCount
+              }
+              
+              saveStepData(currentStep.id, stepData)
+              
+              // Update backend with completed step
+              console.log('Auto-saving: Updating current step in database...')
+              await updateCurrentStep({ 
+                step: progress.currentId,
+                stepData: {
+                  [`step_${currentStep.id}`]: {
+                    ...stepData,
+                    extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null
+                  }
+                }
+              })
+              
+              console.log('Auto-save complete! Progress saved.')
+            } catch (autoSaveError) {
+              console.error('Auto-save failed:', autoSaveError)
+              // Don't show error to user - they can still manually proceed
+            }
+          }
+          
         } catch (error) {
           console.error('Backend analysis failed:', error)
           setIsAnalyzingCapture(false)
@@ -346,34 +431,170 @@ export function CameraStep() {
     } catch (error) {
       console.error('Capture failed:', error)
     }
-  }, [isCameraAvailable, cameraStream, cameraStatus, currentStep.aiConfig, currentStep.id, currentStep.title])
+  }, [isCameraReady, currentStep.aiConfig, currentStep.id, currentStep.title])
 
   // Handle proceeding to next step after analysis
-  const handleProceed = useCallback(() => {
+  const handleProceed = useCallback(async () => {
     if (!capturedImage || !analysisResult) return
     
-    const stepData = {
-      timestamp: new Date(),
-      action: 'capture' as const,
-      stepTitle: currentStep.title,
-      imageData: capturedImage,
-      validationResults: {
-        overall: analysisResult.overall,
-        checks: {}
-      },
-      qualityScore: analysisResult.overall.confidence,
-      requiresReview: !analysisResult.overall.passed || retryCount >= 2,
-      retryCount: retryCount
-    }
+    try {
+      // Check if data was already saved by auto-save
+      const currentStepData = surveyData.stepData[currentStep.id]
+      const alreadySaved = currentStepData?.validated && currentStepData?.imageUploaded
+      
+      if (!alreadySaved) {
+        // If not auto-saved (e.g., user clicked continue before validation), save now
+        console.log('Data not auto-saved, saving now...')
+        
+        // Upload image to S3 first
+        if (capturedImage) {
+          try {
+            console.log('Converting captured image to blob...')
+            
+            let blob: Blob
+          
+          // First try to use the canvas blob if available (most reliable)
+          if (canvasBlobRef.current) {
+            try {
+              console.log('Using canvas blob method...')
+              blob = await canvasBlobRef.current
+              canvasBlobRef.current = null // Clear after use
+            } catch (canvasError) {
+              console.warn('Canvas blob failed:', canvasError)
+              
+              // Fallback to fetch method
+              try {
+                const response = await fetch(capturedImage)
+                if (!response.ok) {
+                  throw new Error(`Failed to fetch captured image: ${response.status}`)
+                }
+                blob = await response.blob()
+              } catch (fetchError) {
+                console.warn('Fetch also failed, trying base64 decode:', fetchError)
+                
+                // Last resort: manually convert base64 to blob
+                const base64Data = capturedImage.split(',')[1]
+                if (!base64Data) {
+                  throw new Error('Invalid data URL format')
+                }
+                
+                const byteCharacters = atob(base64Data)
+                const byteNumbers = new Array(byteCharacters.length)
+                for (let i = 0; i < byteCharacters.length; i++) {
+                  byteNumbers[i] = byteCharacters.charCodeAt(i)
+                }
+                const byteArray = new Uint8Array(byteNumbers)
+                blob = new Blob([byteArray], { type: 'image/jpeg' })
+              }
+            }
+          } else {
+            // No canvas blob available, use fetch approach
+            try {
+              const response = await fetch(capturedImage)
+              if (!response.ok) {
+                throw new Error(`Failed to fetch captured image: ${response.status}`)
+              }
+              blob = await response.blob()
+            } catch (fetchError) {
+              console.warn('Fetch failed, trying alternative method:', fetchError)
+              
+              // Alternative method: manually convert base64 to blob
+              const base64Data = capturedImage.split(',')[1]
+              if (!base64Data) {
+                throw new Error('Invalid data URL format')
+              }
+              
+              const byteCharacters = atob(base64Data)
+              const byteNumbers = new Array(byteCharacters.length)
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i)
+              }
+              const byteArray = new Uint8Array(byteNumbers)
+              blob = new Blob([byteArray], { type: 'image/jpeg' })
+            }
+          }
+          
+          console.log('Blob created:', {
+            size: blob.size,
+            type: blob.type
+          })
+          
+          // Ensure we have a valid blob
+          if (blob.size === 0) {
+            throw new Error('Invalid image data - blob is empty')
+          }
+          
+          const file = new File([blob], `step-${currentStep.id}-capture.jpg`, { type: 'image/jpeg' })
+          
+          console.log('Attempting to upload image:', {
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type
+          })
+          
+          await uploadImage({
+            file,
+            stepId: currentStep.id,
+            imageType: 'meter_photo'
+          })
+          console.log('Image upload successful')
+        } catch (uploadError) {
+          console.error('Image processing/upload failed:', uploadError)
+          const errorMessage = uploadError instanceof Error ? uploadError.message : 'Unknown error'
+          
+          // More user-friendly error messages
+          if (errorMessage.includes('Load failed') || errorMessage.includes('Failed to fetch')) {
+            alert('Failed to process the captured image. This might be due to browser restrictions. You can continue, but the image won\'t be saved.')
+          } else {
+            alert(`Failed to upload image: ${errorMessage}. You can still continue, but the image won't be saved.`)
+          }
+          // Don't prevent progression, just log the error
+        }
+        }
+        
+        const stepData = {
+          timestamp: new Date(),
+          action: 'capture' as const,
+          validated: analysisResult.overall.passed,
+          validationResult: analysisResult.overall,
+          imageUploaded: true,
+          retryCount: retryCount
+        }
 
-    saveSurveyData(currentStep.id, stepData)
-    
-    // Clear captured image before moving to next step
-    setCapturedImage(null)
-    setAnalysisResult(null)
-    
-    nextStep()
-  }, [capturedImage, analysisResult, currentStep.id, currentStep.title, saveSurveyData, nextStep, retryCount])
+        saveStepData(currentStep.id, stepData)
+        
+        // Update backend with new step
+        const nextStepNumber = progress.currentId + 1
+        await updateCurrentStep({ 
+          step: nextStepNumber,
+          stepData: {
+            [`step_${currentStep.id}`]: {
+              ...stepData,
+              extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null
+            }
+          }
+        })
+      } else {
+        console.log('Data already auto-saved, just moving to next step')
+        
+        // Just update to the next step
+        const nextStepNumber = progress.currentId + 1
+        await updateCurrentStep({ 
+          step: nextStepNumber
+        })
+      }
+      
+      // Clear captured image before moving to next step
+      setCapturedImage(null)
+      setAnalysisResult(null)
+      
+      nextStep()
+    } catch (error) {
+      console.error('Failed to proceed:', error)
+      // Still allow navigation even if backend fails
+      nextStep()
+    }
+  }, [capturedImage, analysisResult, currentStep.id, currentStep.title, saveStepData, nextStep, retryCount, uploadImage, updateCurrentStep, progress.currentId, surveyData.stepData])
 
   // Handle retaking the photo
   const handleRetake = useCallback(() => {
@@ -381,25 +602,32 @@ export function CameraStep() {
     setAnalysisResult(null)
     setIsAnalyzingCapture(false)
     setRetryCount(prev => prev + 1)
+    canvasBlobRef.current = null // Clear any stored blob
   }, [])
 
-  const handleSkip = useCallback(() => {
+  const handleSkip = useCallback(async () => {
     const stepData = {
       timestamp: new Date(),
       action: 'skip' as const,
-      stepTitle: currentStep.title,
-      validationResults: {
-        overall: { passed: false, confidence: 0, message: 'Skipped by user' },
-        checks: {}
-      },
-      qualityScore: 0,
-      requiresReview: true,
+      validated: false,
+      validationResult: { passed: false, confidence: 0, message: 'Skipped by user' },
+      imageUploaded: false,
       retryCount: 0
     }
     
-    saveSurveyData(currentStep.id, stepData)
+    saveStepData(currentStep.id, stepData)
+    
+    // Update backend with new step
+    const nextStepNumber = progress.currentId + 1
+    await updateCurrentStep({ 
+      step: nextStepNumber,
+      stepData: {
+        [`step_${currentStep.id}`]: stepData
+      }
+    })
+    
     nextStep()
-  }, [currentStep.id, currentStep.title, saveSurveyData, nextStep])
+  }, [currentStep.id, currentStep.title, saveStepData, nextStep, updateCurrentStep, progress.currentId])
 
 
 
@@ -504,6 +732,7 @@ export function CameraStep() {
             key={`camera-${currentStep.id}`} // Force re-render on step change
             onCameraReady={(video) => {
               videoRef.current = video
+              setIsCameraReady(true)
             }}
           />
         ) : null}
@@ -524,16 +753,14 @@ export function CameraStep() {
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary-foreground border-t-transparent"></div>
                   <span>Analyzing image...</span>
                 </div>
-              ) : analysisResult ? (
+              ) : analysisResult && !analysisResult.overall.passed ? (
                 <div className="space-y-3">
-                  {!analysisResult.overall.passed && (
-                    <div className="bg-destructive text-destructive-foreground px-4 py-3 rounded-lg">
-                      <div className="font-medium mb-2">Issues Found:</div>
-                      <div className="text-sm">
-                        • {analysisResult.overall.message}
-                      </div>
+                  <div className="bg-destructive text-destructive-foreground px-4 py-3 rounded-lg">
+                    <div className="font-medium mb-2">Issues Found:</div>
+                    <div className="text-sm">
+                      • {analysisResult.overall.message}
                     </div>
-                  )}
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -604,9 +831,9 @@ export function CameraStep() {
             onCapture={handleCapture}
             onSkip={currentStep.skippable ? handleSkip : undefined}
             isLastStep={progress.current === progress.total}
-            isLoading={!cameraStream || !!capturedImage}
+            isLoading={!isCameraReady || !!capturedImage}
             captureLabel={
-              !cameraStream ? "Starting Camera..." :
+              !isCameraReady ? "Starting Camera..." :
               capturedImage ? "Photo Captured" :
               "Take Picture"
             }

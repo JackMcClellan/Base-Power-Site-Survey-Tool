@@ -3,8 +3,7 @@
 import React from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
 import { SurveyHeader } from '@/components/shared/survey-header'
 import { 
   surveyStepsAtom, 
@@ -12,22 +11,29 @@ import {
   startSurveyAtom,
   surveyDataAtom 
 } from '@/atoms/survey'
+import { useSurveyBackend } from '@/hooks/use-survey-backend'
 
 export function WelcomeStep() {
   const steps = useAtomValue(surveyStepsAtom)
   const surveyData = useAtomValue(surveyDataAtom)
   const nextStep = useSetAtom(nextStepAtom)
   const startSurvey = useSetAtom(startSurveyAtom)
+  const { updateCurrentStep } = useSurveyBackend()
 
   // All steps in the configuration are now camera steps
   const actualSurveySteps = steps
 
-  const handleStart = () => {
+  const handleStart = async () => {
     if (!surveyData.startTime) {
+      // Start the survey
       startSurvey()
+      // Update backend to step 1
+      await updateCurrentStep({ step: 1 })
     } else {
-      // If survey was already started, just move to first step
+      // If survey was already started, just move to next step
       nextStep()
+      // Update backend with the new step (which would be 1 if coming from 0)
+      await updateCurrentStep({ step: 1 })
     }
   }
 
@@ -83,8 +89,13 @@ export function WelcomeStep() {
                   variant="default"
                   size="lg"
                   className="w-full font-semibold py-4 text-lg"
+                  disabled={surveyData.currentlySyncing}
                 >
-                  {surveyData.startTime ? 'Continue Survey' : 'Start Assessment'}
+                  {surveyData.currentlySyncing 
+                    ? 'Starting...' 
+                    : surveyData.startTime 
+                      ? 'Continue Survey' 
+                      : 'Start Assessment'}
                 </Button>
               </div>
             </CardContent>

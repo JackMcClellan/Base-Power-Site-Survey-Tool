@@ -1,28 +1,126 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { surveyDataAtom, surveyStepsAtom, currentStepAtom } from '@/atoms/survey'
+import { surveyDataAtom, currentStepAtom } from '@/atoms/survey'
 import { SurveyHeader } from '@/components/shared/survey-header'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { useSurveyBackend } from '@/hooks/use-survey-backend'
+import { ThankYou } from '@/components/thank-you'
+import { SURVEY_STEPS } from '@/config/survey-steps'
+
+interface SurveyDataFromBackend {
+  id: string
+  userId: string
+  currentStep: number
+  status: string
+  meterPhotos?: Record<string, unknown>
+  analysisResults?: Record<string, unknown>
+  surveyResponses?: Record<string, unknown>
+  [key: string]: unknown
+}
 
 export function ReviewStep() {
   const surveyData = useAtomValue(surveyDataAtom)
-  const steps = useAtomValue(surveyStepsAtom)
   const setCurrentStep = useSetAtom(currentStepAtom)
   const [showThankYou, setShowThankYou] = useState(false)
-  
-  // All steps in the configuration are now camera steps
-  const completedSteps = surveyData.completedSteps
-  const stepData = surveyData.stepData
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
+  const [isLoadingImages, setIsLoadingImages] = useState(true)
+  const [backendSurveyData, setBackendSurveyData] = useState<SurveyDataFromBackend | null>(null)
+  const [isLoadingSurvey, setIsLoadingSurvey] = useState(true)
+  const { completeSurvey, surveyId } = useSurveyBackend()
+
+  // Fetch survey data and images from backend when component mounts
+  useEffect(() => {
+    async function fetchSurveyData() {
+      if (!surveyId) return
+      
+      try {
+        setIsLoadingSurvey(true)
+        // Fetch complete survey data
+        const surveyResponse = await fetch(`/api/survey/${surveyId}`)
+        if (surveyResponse.ok) {
+          const surveyResult = await surveyResponse.json()
+          if (surveyResult.success && surveyResult.data) {
+            setBackendSurveyData(surveyResult.data)
+          }
+        }
+
+        // Fetch image URLs
+        setIsLoadingImages(true)
+        const imageResponse = await fetch(`/api/images/${surveyId}`)
+        
+        if (imageResponse.ok) {
+          const imageResult = await imageResponse.json()
+          if (imageResult.success && imageResult.data?.urls) {
+            setImageUrls(imageResult.data.urls)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch survey data:', error)
+      } finally {
+        setIsLoadingImages(false)
+        setIsLoadingSurvey(false)
+      }
+    }
+
+    fetchSurveyData()
+  }, [surveyId])
+
+  // Helper function to check if a step is completed
+  const isStepCompleted = (stepId: number): boolean => {
+    if (backendSurveyData?.surveyResponses) {
+      const stepKey = `step_${stepId}`
+      const stepData = backendSurveyData.surveyResponses[stepKey]
+      return !!stepData && typeof stepData === 'object' && 
+             ('action' in stepData || 'enteredValue' in stepData || 'validationResult' in stepData)
+    }
+    return false
+  }
+
+  // Helper function to get step data
+  const getStepData = (stepId: number): Record<string, unknown> | null => {
+    if (backendSurveyData?.surveyResponses) {
+      const stepKey = `step_${stepId}`
+      return backendSurveyData.surveyResponses[stepKey] as Record<string, unknown> || null
+    }
+    return null
+  }
+
+  // Helper function to get entered value for a step
+  const getEnteredValue = (stepId: number): string | null => {
+    const stepData = getStepData(stepId)
+    if (stepData && typeof stepData === 'object' && 'enteredValue' in stepData) {
+      return stepData.enteredValue as string
+    }
+    return null
+  }
 
   const handleFinishSurvey = async () => {
-    // TODO: Send survey data to server
-    // For now, just show thank you page
-    console.log('Sending survey data to server:', surveyData)
-    setShowThankYou(true)
+    try {
+      // Complete the survey in the backend
+      const success = await completeSurvey({
+        finalData: {
+          totalSteps: SURVEY_STEPS.length,
+          completionTime: new Date().toISOString()
+        },
+        completionNotes: 'Survey completed successfully'
+      })
+
+      if (success) {
+        setShowThankYou(true)
+      } else {
+        console.error('Failed to complete survey in backend')
+        // Still show thank you page even if backend fails
+        setShowThankYou(true)
+      }
+    } catch (error) {
+      console.error('Error completing survey:', error)
+      // Still show thank you page even if backend fails
+      setShowThankYou(true)
+    }
   }
 
   const handleRetakePhoto = (stepId: number) => {
@@ -31,34 +129,19 @@ export function ReviewStep() {
   }
 
   // Show thank you page if survey is finished
-  if (showThankYou) {
+  if (showThankYou || backendSurveyData?.status === 'COMPLETED') {
+    return <ThankYou />
+  }
+
+  // Show loading state while fetching survey data
+  if (isLoadingSurvey) {
     return (
       <div className="flex flex-col w-screen h-screen overflow-hidden bg-background">
         <SurveyHeader showStepNumber={false} />
-        
-        <div className="flex-1 flex items-center justify-center p-6">
-          <Card className="max-w-md w-full">
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl text-primary-foreground">Thank You!</CardTitle>
-              <CardDescription className="text-lg mt-4">
-                Your electricity meter survey has been successfully submitted.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <p className="text-muted-foreground">
-                We&apos;ll review your information and contact you soon with next steps for your battery system installation.
-              </p>
-              <div className="mt-8">
-                <Button 
-                  onClick={() => window.location.reload()}
-                  variant="outline"
-                  size="lg"
-                >
-                  Start New Survey
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg text-muted-foreground">Loading survey data...</p>
+          </div>
         </div>
       </div>
     )
@@ -91,74 +174,115 @@ export function ReviewStep() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {completedSteps.map((stepId) => {
-                  const step = steps.find(s => s.id === stepId)
-                  const data = stepData[stepId]
+                {SURVEY_STEPS.map((step) => {
+                  const stepCompleted = isStepCompleted(step.id)
+                  const data = getStepData(step.id)
                   
-                  if (!step || !data) return null
+                  // Find the image URL for this step
+                  const stepImageKey = Object.keys(imageUrls).find(key => key.includes(`step-${step.id}`))
+                  const imageUrl = stepImageKey ? imageUrls[stepImageKey] : null
 
                   return (
-                    <div key={stepId} className="border rounded-lg p-4">
+                    <div key={step.id} className="border rounded-lg p-4">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <h3 className="font-semibold flex items-center space-x-2">
                             <Badge variant="outline" className="text-xs">
-                              Step {stepId}
+                              Step {step.id}
                             </Badge>
                             <span>{step.title}</span>
+                            {!stepCompleted && (
+                              <Badge variant="secondary" className="text-xs ml-2">
+                                Not Completed
+                              </Badge>
+                            )}
+                            {data?.action === 'skip' && (
+                              <Badge variant="secondary" className="text-xs ml-2">
+                                Skipped
+                              </Badge>
+                            )}
                           </h3>
                           <p className="text-sm text-muted-foreground mt-1">{step.description}</p>
                         </div>
                       </div>
 
-                      {/* Data Entry Display */}
-                      {step.stepType === 'data-entry' && data.data?.amperage && (
-                        <div className="mb-4 p-4 bg-muted rounded-lg">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-muted-foreground">Main Disconnect Amperage</p>
-                              <p className="text-2xl font-bold">{data.data.amperage}A</p>
+                      {/* Only show content if step is completed */}
+                      {stepCompleted && (
+                        <>
+                          {/* Data Entry Display */}
+                          {step.stepType === 'data-entry' && (
+                            <div className="mb-4 p-4 bg-muted rounded-lg">
+                              {data?.action === 'skip' ? (
+                                <p className="text-sm text-muted-foreground">No value entered (skipped)</p>
+                              ) : (
+                                <>
+                                  <p className="text-lg font-semibold">
+                                    Entered Value: {getEnteredValue(step.id) || 'No value'}
+                                  </p>
+                                  {data?.validationResult && typeof data.validationResult === 'object' && 'message' in data.validationResult && (
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      {(data.validationResult as {message: string}).message}
+                                    </p>
+                                  )}
+                                </>
+                              )}
                             </div>
-                            {data.data.extractedValue && (
-                              <Badge variant="secondary" className="ml-2">
-                                AI Detected
-                              </Badge>
-                            )}
-                          </div>
-                          {data.action === 'skip' && (
-                            <p className="text-sm text-muted-foreground mt-2">No value entered</p>
                           )}
-                        </div>
+
+                          {/* Image Preview */}
+                          {data?.imageUploaded && step.stepType !== 'data-entry' && (
+                            <div className="space-y-3">
+                              {isLoadingImages ? (
+                                <div className="w-full max-w-md rounded-lg border bg-gray-100 h-64 flex items-center justify-center">
+                                  <p className="text-gray-500">Loading image...</p>
+                                </div>
+                              ) : imageUrl ? (
+                                <img
+                                  src={imageUrl}
+                                  alt={`${step.title} photo`}
+                                  className="w-full max-w-md rounded-lg border object-contain"
+                                  style={{ maxHeight: '400px' }}
+                                />
+                              ) : (
+                                <div className="w-full max-w-md rounded-lg border bg-gray-100 h-64 flex items-center justify-center">
+                                  <p className="text-gray-500">Image not available</p>
+                                </div>
+                              )}
+                              <Button
+                                onClick={() => handleRetakePhoto(step.id)}
+                                variant="outline"
+                                size="sm"
+                              >
+                                Retake Photo
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* For data entry steps, show option to re-enter */}
+                          {step.stepType === 'data-entry' && (
+                            <Button
+                              onClick={() => handleRetakePhoto(step.id)}
+                              variant="outline"
+                              size="sm"
+                              className="mt-2"
+                            >
+                              Edit Value
+                            </Button>
+                          )}
+                        </>
                       )}
 
-                      {/* Image Preview - Don't show for data entry steps unless they have their own image */}
-                      {data.imageData && step.stepType !== 'data-entry' && (
-                        <div className="space-y-3">
-                          <img 
-                            src={data.imageData} 
-                            alt={`Survey step ${stepId}`}
-                            className="w-full max-w-md rounded-lg border"
-                          />
+                      {/* Show option to complete incomplete steps */}
+                      {!stepCompleted && (
+                        <div className="mt-3">
                           <Button
-                            onClick={() => handleRetakePhoto(stepId)}
-                            variant="outline"
+                            onClick={() => handleRetakePhoto(step.id)}
+                            variant="default"
                             size="sm"
                           >
-                            Retake Photo
+                            Complete This Step
                           </Button>
                         </div>
-                      )}
-
-                      {/* For data entry steps, show option to re-enter */}
-                      {step.stepType === 'data-entry' && (
-                        <Button
-                          onClick={() => handleRetakePhoto(stepId)}
-                          variant="outline"
-                          size="sm"
-                          className="mt-2"
-                        >
-                          Edit Value
-                        </Button>
                       )}
                     </div>
                   )
@@ -182,8 +306,9 @@ export function ReviewStep() {
             variant="default"
             size="lg"
             className="w-full font-semibold"
+            disabled={surveyData.currentlySyncing}
           >
-            Finish Survey
+            {surveyData.currentlySyncing ? 'Submitting...' : 'Finish Survey'}
           </Button>
         </div>
       </div>

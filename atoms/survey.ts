@@ -1,5 +1,7 @@
 import { atom } from 'jotai'
-// Simple analysis result interface
+import { SURVEY_STEPS, type SurveyStep } from '@/config/survey-steps'
+
+// Basic analysis result interface for immediate UI feedback
 interface AnalysisResult {
   overall: {
     passed: boolean
@@ -7,154 +9,54 @@ interface AnalysisResult {
     message: string
   }
 }
-import { SURVEY_STEPS, type SurveyStep } from '@/config/survey-steps'
 
 // Survey step state - starts at 0 for welcome page
 export const currentStepAtom = atom<number>(0)
 
-// Enhanced validation result interface
+// Survey ID provider atom
+export const surveyIdAtom = atom<string | null>(null)
+
+// Simple validation result for UI feedback
 interface ValidationResult {
   passed: boolean
-  confidence: number // 0-1 score
-  message: string
-  details?: Record<string, unknown>
-}
-
-// Enhanced image metadata
-interface ImageMetadata {
-  width: number
-  height: number
-  quality: 'excellent' | 'good' | 'fair' | 'poor'
-  sharpness: number // 0-1 score
-  brightness: number // 0-1 score
-  timestamp: Date
-  deviceInfo?: {
-    userAgent: string
-    screenResolution: string
-  }
-}
-
-// Detection data for AI validation
-interface DetectionData {
-  objectType: string
-  boundingBox: {
-    x: number
-    y: number
-    width: number
-    height: number
-  }
   confidence: number
-  features: {
-    hasVisibleText: boolean
-    hasNumbers: boolean
-    isCircular: boolean
-    isRectangular: boolean
-    hasGlassCover: boolean
-    hasDigitalDisplay: boolean
-    hasDials: boolean
-  }
-  frameOccupancy: number // Percentage of frame occupied by object
+  message: string
 }
 
-// Environmental context for wide shots
-interface EnvironmentalContext {
-  wallVisible: boolean
-  groundVisible: boolean
-  obstructions: {
-    windows: number
-    doors: number
-    utilityBoxes: number
-    other: string[]
-  }
-  clearanceArea: {
-    left: number
-    right: number
-    above: number
-    below: number
-  }
-}
-
-// Enhanced survey step data interface
-interface SurveyStepData {
+// Minimal step data for frontend state (before backend sync)
+interface StepData {
   timestamp: Date
-  action: 'capture' | 'skip' | 'manual' | 'retry'
-  stepTitle: string
-  
-  // Image and capture data
-  imageMetadata?: ImageMetadata
-  imageData?: string // base64 encoded image
-  
-  // AI validation results
-  validationResults: {
-    overall: ValidationResult
-    checks: {
-      [checkName: string]: ValidationResult
-    }
-  }
-  
-  // Detection and analysis data
-  detectionData?: DetectionData
-  environmentalContext?: EnvironmentalContext
-  
-  // Additional step-specific data
-  data?: {
-    detectionType?: string
-    meterType?: 'analog' | 'digital' | 'smart' | 'unknown'
-    readingValue?: string
-    modelNumber?: string
-    manufacturer?: string
-    installationYear?: string
-    [key: string]: string | number | boolean | undefined
-  }
-  
-  // Quality assurance
-  qualityScore: number // Overall quality score 0-1
-  requiresReview: boolean
+  action: 'capture' | 'skip' | 'retry'
+  validated: boolean
+  validationResult?: ValidationResult
+  // Image will be uploaded to S3, only keep reference
+  imageUploaded: boolean
   retryCount: number
 }
 
-// Survey data collection with enhanced structure
+// Lightweight survey state for frontend
 export const surveyDataAtom = atom<{
-  stepData: Record<number, SurveyStepData>
-  images: { 
-    stepId: number
-    imageData: string
-    timestamp: Date
-    metadata: ImageMetadata
-  }[]
+  stepData: Record<number, StepData>
   startTime: Date | null
   completedSteps: number[]
-  surveyContext: {
-    location?: {
-      address?: string
-      coordinates?: { lat: number, lng: number }
-    }
-    property?: {
-      type: 'residential' | 'commercial' | 'industrial'
-      constructionYear?: number
-      electricalSystemAge?: string
-    }
-    weather?: {
-      condition: string
-      lighting: 'excellent' | 'good' | 'fair' | 'poor'
-    }
-  }
+  // Backend will manage the full survey data
+  surveyId?: string
+  currentlySyncing: boolean
 }>({
   stepData: {},
-  images: [],
   startTime: null,
   completedSteps: [],
-  surveyContext: {}
+  currentlySyncing: false
 })
 
-// Use the JSON-like step configuration
+// Survey steps configuration
 export const surveyStepsAtom = atom<SurveyStep[]>(SURVEY_STEPS)
 
-// Export types for use in components
+// Export types for components
 export type { SurveyStep, AIConfig } from '@/config/survey-steps'
-export type { SurveyStepData, ValidationResult }
+export type { StepData, ValidationResult, AnalysisResult }
 
-// Derived atoms
+// Derived atoms for UI state
 export const currentStepDataAtom = atom((get) => {
   const currentStepId = get(currentStepAtom)
   const steps = get(surveyStepsAtom)
@@ -165,52 +67,44 @@ export const currentStepDataAtom = atom((get) => {
   // Step 6+: Review (no config needed)
   
   if (currentStepId >= 1 && currentStepId <= steps.length) {
-    // Map flow step ID to camera step configuration (1-based to 0-based)
     return steps[currentStepId - 1]
   }
   
-  // Fallback to first step for welcome/review/invalid states
   return steps[0]
 })
 
-// Updated progress atom to only count camera steps
+// Progress calculation for UI
 export const surveyProgressAtom = atom((get) => {
   const currentStepId = get(currentStepAtom)
   const steps = get(surveyStepsAtom)
   
-  // Only camera steps (1-5) count toward progress
-  // Step 0 (welcome) and step 6+ (review) don't count
-  
   let currentStepNumber = 0
   if (currentStepId >= 1 && currentStepId <= steps.length) {
-    currentStepNumber = currentStepId // Step 1 = progress 1, step 2 = progress 2, etc.
+    currentStepNumber = currentStepId
   } else if (currentStepId > steps.length) {
-    currentStepNumber = steps.length // Review shows as completed
+    currentStepNumber = steps.length
   }
   
   return {
-    current: currentStepNumber, // Current camera step number (0 for welcome, steps.length for review)
-    total: steps.length, // Total number of camera steps
+    current: currentStepNumber,
+    total: steps.length,
     percentage: steps.length > 0 ? Math.round((currentStepNumber / steps.length) * 100) : 0,
-    currentId: currentStepId, // Keep track of the actual flow step ID
-    isStep: currentStepId >= 1 && currentStepId <= steps.length // Whether current is a counted camera step
+    currentId: currentStepId,
+    isStep: currentStepId >= 1 && currentStepId <= steps.length
   }
 })
 
-// Enhanced action atoms
+// Simple navigation actions (backend sync handled by useSurveyBackend hook)
 export const nextStepAtom = atom(
   null,
   (get, set) => {
     const currentStepId = get(currentStepAtom)
     const steps = get(surveyStepsAtom)
-    const surveyData = get(surveyDataAtom)
-    
-    // Flow: Welcome(0) -> Camera Steps(1-5) -> Review(6)
     const maxStepId = steps.length + 1 // +1 for review step
     
     if (currentStepId < maxStepId) {
-      const nextId = currentStepId + 1
-      set(currentStepAtom, nextId)
+      set(currentStepAtom, currentStepId + 1)
+      // Backend sync will be handled by components using useSurveyBackend hook
     }
   }
 )
@@ -220,7 +114,6 @@ export const previousStepAtom = atom(
   (get, set) => {
     const currentStepId = get(currentStepAtom)
     
-    // Can go back as long as we're not at the welcome step (0)
     if (currentStepId > 0) {
       set(currentStepAtom, currentStepId - 1)
     }
@@ -231,24 +124,25 @@ export const startSurveyAtom = atom(
   null,
   (get, set) => {
     const surveyData = get(surveyDataAtom)
+    
     set(surveyDataAtom, {
       ...surveyData,
       startTime: new Date()
     })
     set(currentStepAtom, 1)
+    // Backend sync will be handled by components using useSurveyBackend hook
   }
 )
 
-export const saveSurveyDataAtom = atom(
+// Save minimal step data locally (full data goes to backend via useSurveyBackend)
+export const saveStepDataAtom = atom(
   null,
-  (get, set, stepId: number, data: SurveyStepData) => {
+  (get, set, stepId: number, data: StepData) => {
     const surveyData = get(surveyDataAtom)
     
-    // Ensure the step is marked as completed when data is saved
     const completedSteps = surveyData.completedSteps.includes(stepId)
       ? surveyData.completedSteps
       : [...surveyData.completedSteps, stepId]
-    
     
     set(surveyDataAtom, {
       ...surveyData,
@@ -261,33 +155,34 @@ export const saveSurveyDataAtom = atom(
   }
 )
 
-// Real validation atom using vision system
+// Set syncing state for UI feedback
+export const setSyncingAtom = atom(
+  null,
+  (get, set, syncing: boolean) => {
+    const surveyData = get(surveyDataAtom)
+    set(surveyDataAtom, {
+      ...surveyData,
+      currentlySyncing: syncing
+    })
+  }
+)
+
+// Simple validation for immediate UI feedback (detailed validation happens in backend)
 export const validateStepDataAtom = atom(
   null,
-  async (get, set, stepId: number, detectionResult: AnalysisResult | null, stepType: string) => {
-    // detectionResult should be an AnalysisResult from the vision system
-    // Transform the detection result to match the survey validation structure
-    
-    if (!detectionResult) {
-      // Fallback for invalid detection results
-      const fallbackValidation: SurveyStepData['validationResults'] = {
-        overall: {
-          passed: false,
-          confidence: 0,
-          message: 'Vision analysis failed - please try again',
-        },
-        checks: {}
+  async (get, set, analysisResult: AnalysisResult | null): Promise<ValidationResult> => {
+    if (!analysisResult) {
+      return {
+        passed: false,
+        confidence: 0,
+        message: 'Analysis failed - please try again'
       }
-      
-      return fallbackValidation
     }
     
-    // Transform AnalysisResult to SurveyStepData validation format
-    const visionValidation: SurveyStepData['validationResults'] = {
-      overall: detectionResult.overall,
-      checks: {}
+    return {
+      passed: analysisResult.overall.passed,
+      confidence: analysisResult.overall.confidence,
+      message: analysisResult.overall.message
     }
-    
-    return visionValidation
   }
 ) 

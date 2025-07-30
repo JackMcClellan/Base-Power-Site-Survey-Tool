@@ -1,0 +1,35 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Survey {
+  id          Int      @id @default(autoincrement())
+  userId      String   @unique @map("user_id")
+  currentStep Int      @default(0) @map("current_step")
+  status      Status   @default(IN_PROGRESS)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  completedAt DateTime? @map("completed_at")
+  
+  // JSON fields for flexible data storage
+  meterPhotos     Json? @map("meter_photos")
+  analysisResults Json? @map("analysis_results")
+  surveyResponses Json? @map("survey_responses")
+  deviceInfo      Json? @map("device_info")
+  sessionMetadata Json? @map("session_metadata")
+
+  @@map("surveys")
+}
+
+enum Status {
+  IN_PROGRESS @map("in_progress")
+  COMPLETED   @map("completed")
+}
