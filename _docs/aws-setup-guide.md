@@ -337,6 +337,30 @@ Click "Save" after adding all variables
 
 ---
 
+## 5.1 CRITICAL: Configure Build Specification for SSR
+
+**⚠️ IMPORTANT: This step is REQUIRED for Next.js apps with server-side rendering (SSR) or API routes.**
+
+AWS Amplify environment variables are NOT automatically available to server-side code. You must create an `amplify.yml` file in your project root to make them accessible.
+
+### Why This Is Needed
+
+According to [AWS documentation](https://docs.aws.amazon.com/amplify/latest/userguide/ssr-environment-variables.html):
+- Environment variables set in Amplify console are only available during BUILD time
+- They are NOT available to server-side runtime by default
+- You must explicitly write them to `.env.production` during the build
+
+### Create amplify.yml
+
+The `amplify.yml` file has already been created in your project root. This file:
+1. Writes all environment variables to `.env.production` during build
+2. Makes them available to your API routes and server-side code
+3. Ensures your app can access AWS services and OpenAI
+
+**Without this file, your deployed app will fail with "Missing required environment variables" errors.**
+
+---
+
 ## 6. Getting Connection Details
 
 ### Get RDS Endpoint:

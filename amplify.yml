@@ -1,0 +1,29 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        # Write all required environment variables to .env.production
+        # This makes them available to Next.js server-side runtime
+        # Using env | grep to avoid exposing secrets in build logs
+        - env | grep -e DATABASE_URL >> .env.production
+        - env | grep -e DATABASE_SSL >> .env.production
+        - env | grep -e APP_AWS_REGION >> .env.production
+        - env | grep -e APP_AWS_ACCESS_KEY_ID >> .env.production
+        - env | grep -e APP_AWS_SECRET_ACCESS_KEY >> .env.production
+        - env | grep -e S3_BUCKET_NAME >> .env.production
+        - env | grep -e OPENAI_API_KEY >> .env.production
+        - env | grep -e NEXT_PUBLIC_ >> .env.production
+        # Build the Next.js app
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+      - .next/cache/**/* 
