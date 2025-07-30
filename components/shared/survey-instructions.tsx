@@ -11,7 +11,7 @@ interface SurveyInstructionsProps {
 }
 
 export function SurveyInstructions({ instructions, tips, warnings, className = '' }: SurveyInstructionsProps) {
-  const [isExpanded, setIsExpanded] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
   const hasTips = tips && tips.length > 0
   const hasWarnings = warnings && warnings.length > 0
   const hasExpandableContent = hasTips || hasWarnings
