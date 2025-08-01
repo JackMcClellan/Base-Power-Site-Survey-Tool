@@ -112,7 +112,7 @@ Create a `.env` file in the root directory:
    - Create PostgreSQL RDS instance
    - Create S3 bucket with private access
    - Configure IAM user with appropriate permissions
-   - See [AWS Setup Guide](#-aws-setup-guide) below for detailed configuration
+   - **Follow the [Complete AWS Setup Guide](_docs/aws-complete-setup-guide.md) for detailed step-by-step instructions**
 
 3. **Initialize database**
    ```bash
@@ -197,83 +197,49 @@ For non-AWS environments:
 2. **Add environment variables** in project settings  
 3. **Deploy** - automatic builds on push to main
 
-## AWS Setup Guide
+## AWS Infrastructure Setup
 
-### S3 Bucket Configuration
+This application requires AWS infrastructure including RDS PostgreSQL, S3 storage, and IAM permissions. 
 
-1. **Create S3 Bucket**
-   - Bucket name: `base-power-survey-photos` (or your chosen name)
-   - Region: Match your RDS region
-   - Block all public access: ✅ Enabled
-   - Versioning: Optional
+### Quick Setup Overview
 
-2. **Configure CORS for Presigned Uploads**
-   
-   In AWS Console → S3 → Your Bucket → Permissions → Cross-origin resource sharing (CORS):
-   
-   ```json
-   [
-       {
-           "AllowedHeaders": ["*"],
-           "AllowedMethods": ["PUT", "POST", "GET"],
-           "AllowedOrigins": [
-               "https://yourdomain.com",
-               "https://your-vercel-app.vercel.app",
-               "http://localhost:3000",
-               "https://localhost:3000"
-           ],
-           "ExposeHeaders": ["ETag"],
-           "MaxAgeSeconds": 3600
-       }
-   ]
-   ```
-   
-   **⚠️ Important:** Replace the URLs with your actual domain names.
+The complete AWS infrastructure includes:
+- **AWS RDS PostgreSQL** - Survey data and progress tracking
+- **AWS S3** - Secure image storage with presigned URLs  
+- **AWS Amplify** - Frontend hosting and deployment
+- **IAM Policies** - Minimal security permissions
+- **Security Groups** - Network access control
 
-### RDS PostgreSQL Configuration
+### Complete Setup Guide
 
-1. **Create RDS Instance**
-   - Engine: PostgreSQL 15+
-   - Instance class: db.t3.micro (development) or db.t3.small (production)
-   - Storage: 20 GB gp3 (encrypted recommended)
-   - VPC: Default or custom with internet access
-   - Security group: Allow port 5432 from application sources
+For detailed, step-by-step AWS infrastructure setup instructions, see:
 
-2. **Security Group Configuration**
-   ```
-   Type: PostgreSQL
-   Protocol: TCP
-   Port: 5432
-   Source: Your application's IP range or security group
-   ```
+**[Complete AWS Setup Guide](_docs/aws-complete-setup-guide.md)**
 
-### IAM User Setup
+This comprehensive guide includes:
+- ✅ Security Group configuration
+- ✅ RDS PostgreSQL setup with proper networking
+- ✅ S3 bucket configuration with CORS
+- ✅ IAM user and policies with minimal permissions
+- ✅ AWS Amplify deployment configuration
+- ✅ Environment variable configuration
+- ✅ Cost optimization strategies (~$30/month vs $120+)
+- ✅ Local development setup
+- ✅ Troubleshooting common issues
+- ✅ Security checklist and best practices
 
-Create an IAM user with the following policy for S3 and RDS access:
+### Quick Reference - Environment Variables
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "s3:GetObject",
-                "s3:PutObject",
-                "s3:DeleteObject"
-            ],
-            "Resource": "arn:aws:s3:::your-bucket-name/*"
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "s3:ListBucket"
-            ],
-            "Resource": "arn:aws:s3:::your-bucket-name"
-        }
-    ]
-}
-```
+After completing the AWS setup, you'll need these environment variables:
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:pass@host:5432/dbname` |
+| `APP_AWS_REGION` | AWS region for RDS and S3 | `us-east-2` |
+| `APP_AWS_ACCESS_KEY_ID` | AWS IAM access key | `AKIA...` |
+| `APP_AWS_SECRET_ACCESS_KEY` | AWS IAM secret key | `xyz123...` |
+| `S3_BUCKET_NAME` | S3 bucket for photo storage | `basepower-survey-images` |
+| `OPENAI_API_KEY` | OpenAI API key for validation | `sk-proj-...` |
 
 ## API Endpoints
 
