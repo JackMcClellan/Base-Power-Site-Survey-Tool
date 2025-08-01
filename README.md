@@ -216,18 +216,6 @@ For detailed, step-by-step AWS infrastructure setup instructions, see:
 
 **[Complete AWS Setup Guide](_docs/aws-complete-setup-guide.md)**
 
-This comprehensive guide includes:
-- ✅ Security Group configuration
-- ✅ RDS PostgreSQL setup with proper networking
-- ✅ S3 bucket configuration with CORS
-- ✅ IAM user and policies with minimal permissions
-- ✅ AWS Amplify deployment configuration
-- ✅ Environment variable configuration
-- ✅ Cost optimization strategies (~$30/month vs $120+)
-- ✅ Local development setup
-- ✅ Troubleshooting common issues
-- ✅ Security checklist and best practices
-
 ### Quick Reference - Environment Variables
 
 After completing the AWS setup, you'll need these environment variables:
@@ -265,6 +253,15 @@ GET /api/health            # Application health status
 ## Testing
 
 The application includes comprehensive test image sets in the `test_images/` directory for validating AI analysis across all survey steps.
+
+### User Testing Page
+
+For simplified user testing, the application includes a dedicated `/user-test` page that:
+- **Auto-generates** a unique survey UUID on each visit
+- **Automatically redirects** to `/survey/[uuid]` 
+- **No manual UUID required** - testers simply visit `/user-test`
+
+This is ideal for user testing sessions where you want participants to quickly start a new survey without technical setup.
 
 ### Mobile Testing with HTTPS
 

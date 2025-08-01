@@ -1,6 +1,6 @@
-# Complete AWS Setup Guide - Base Power Site Survey Tool
+# Complete AWS Setup Guide - Survey Tool
 
-This comprehensive guide will walk you through setting up the complete AWS infrastructure for the Base Power Site Survey Tool, from initial setup to deployment. Follow each section in order to replicate this setup on your own AWS account.
+This comprehensive guide will walk you through setting up the complete AWS infrastructure for the Survey Tool, from initial setup to deployment. Follow each section in order to replicate this setup on your own AWS account.
 
 ## Overview
 
@@ -10,8 +10,6 @@ This guide creates a secure, cost-effective AWS infrastructure using:
 - **AWS S3** for secure image storage
 - **IAM** for minimal security permissions
 - **VPC** with simplified networking (no NAT gateways for cost savings)
-
-**Estimated Monthly Cost:** ~$30/month
 
 ## Prerequisites
 
@@ -31,8 +29,8 @@ This guide creates a secure, cost-effective AWS infrastructure using:
 - Click "Create security group"
 
 **Create RDS Security Group:**
-- **Security group name:** `basepower-survey-rds-sg`
-- **Description:** `PostgreSQL access for Base Power Survey RDS instance`
+- **Security group name:** `survey-rds-sg`
+- **Description:** `PostgreSQL access for Survey RDS instance`
 - **VPC:** Select your default VPC
 
 **Inbound rules:**
@@ -43,8 +41,8 @@ This guide creates a secure, cost-effective AWS infrastructure using:
 - Description: `Allow PostgreSQL from within VPC`
 
 **Tags:**
-- Key: `Name`, Value: `basepower-survey-rds-sg`
-- Key: `Project`, Value: `BasePowerSurvey`
+- Key: `Name`, Value: `survey-rds-sg`
+- Key: `Project`, Value: `SurveyTool`
 
 Click "Create security group"
 
@@ -61,10 +59,10 @@ Click "Create security group"
 **Step 3 - Templates:** Free tier (if available)
 
 **Step 4 - Settings:**
-- DB instance identifier: `basepower-survey-db`
+- DB instance identifier: `survey-db`
 - Master username: `postgres`
 - Credentials: Self managed
-- Master password: Auto generate ✓ (**SAVE THIS PASSWORD!**)
+- Master password: Auto generate (**SAVE THIS PASSWORD**)
 
 **Step 5 - Instance:** db.t3.micro  
 **Step 6 - Storage:** 20 GiB, autoscaling enabled (max 100 GiB)
@@ -73,19 +71,19 @@ Click "Create security group"
 - Compute resource: Don't connect to EC2
 - VPC: Default VPC
 - Public access: No
-- VPC security group: Choose existing → `basepower-survey-rds-sg`
+- VPC security group: Choose existing → `survey-rds-sg`
 
 **Step 8 - Authentication:** Password authentication
 
 **Step 9 - Additional configuration:**
-- Database name: `basepowersurvey`
+- Database name: `surveydb`
 - Backup retention: 7 days
-- Enable encryption ✓
+- Enable encryption
 - Log exports: Select all
 
 **Tags:**
-- Key: `Name`, Value: `basepower-survey-db`
-- Key: `Project`, Value: `BasePowerSurvey`
+- Key: `Name`, Value: `survey-db`
+- Key: `Project`, Value: `SurveyTool`
 
 Click "Create database" (**Takes 5-10 minutes**)
 
@@ -96,17 +94,17 @@ Click "Create database" (**Takes 5-10 minutes**)
 - Click "Create bucket"
 
 **Bucket Configuration:**
-- **Bucket name:** `basepower-survey-images` (must be globally unique)
+- **Bucket name:** `survey-images` (must be globally unique)
 - **Region:** US East (Ohio) us-east-2
 - **Object Ownership:** ACLs disabled
-- **Block Public Access:** Keep all 4 options checked ✓
+- **Block Public Access:** Keep all 4 options checked
 - **Versioning:** Enable
 - **Encryption:** SSE-S3
 - **Object Lock:** Disable
 
 **Tags:**
-- Key: `Name`, Value: `basepower-survey-images`
-- Key: `Project`, Value: `BasePowerSurvey`
+- Key: `Name`, Value: `survey-images`
+- Key: `Project`, Value: `SurveyTool`
 
 Click "Create bucket"
 
@@ -128,7 +126,7 @@ Click "Create bucket"
 
 **Create Lifecycle Rule:**
 - Management tab → Create lifecycle rule
-- Name: `basepower-survey-storage-transition`
+- Name: `survey-storage-transition`
 - Scope: Apply to all objects
 - Transitions:
   - Standard-IA: 30 days
@@ -140,7 +138,7 @@ Click "Create bucket"
 - AWS Console → Services → IAM → Users → Create user
 
 **User Details:**
-- User name: `basepower-survey-app`
+- User name: `survey-app`
 - Console access: Disabled
 
 **Create Custom Policy:**
@@ -161,7 +159,7 @@ Click "Create bucket"
                 "s3:GetObjectVersion"
             ],
             "Resource": [
-                "arn:aws:s3:::basepower-survey-images/*"
+                "arn:aws:s3:::survey-images/*"
             ]
         },
         {
@@ -171,19 +169,19 @@ Click "Create bucket"
                 "s3:GetBucketLocation"
             ],
             "Resource": [
-                "arn:aws:s3:::basepower-survey-images"
+                "arn:aws:s3:::survey-images"
             ]
         }
     ]
 }
 ```
 
-- Policy name: `basepower-survey-s3-policy`
-- Description: `S3 access for Base Power Survey application`
+- Policy name: `survey-s3-policy`
+- Description: `S3 access for Survey application`
 - Create policy
 
 **Attach Policy to User:**
-- Attach `basepower-survey-s3-policy`
+- Attach `survey-s3-policy`
 - Add tags (same as above)
 - Create user
 
@@ -191,7 +189,7 @@ Click "Create bucket"
 - Click username → Security credentials → Create access key
 - Use case: "Application running outside AWS"
 - Description: `Amplify app access`
-- **🚨 SAVE BOTH VALUES:**
+- **IMPORTANT - SAVE BOTH VALUES:**
   - Access key ID
   - Secret access key
 
@@ -202,7 +200,7 @@ Click "Create bucket"
 ### 1. Get Database Connection Details
 
 **From RDS Console:**
-- Go to RDS → Databases → `basepower-survey-db`
+- Go to RDS → Databases → `survey-db`
 - Copy the "Endpoint" from Connectivity section
 - Note: Port is 5432
 
@@ -260,7 +258,7 @@ CREATE TRIGGER update_surveys_updated_at
 - Click "New app" → "Deploy without Git"
 
 **App Configuration:**
-- App name: `basepower-survey`
+- App name: `survey-app`
 - Click "Next" → "Save and deploy"
 
 ### 2. Configure Environment Variables
@@ -268,11 +266,11 @@ CREATE TRIGGER update_surveys_updated_at
 **Critical Setup for SSR/API Routes:**
 Go to Environment variables → Manage variables
 
-**⚠️ REQUIRED VARIABLES** (Build will fail if missing):
+**REQUIRED VARIABLES** (Build will fail if missing):
 
 1. **DATABASE_URL**
    ```
-   postgresql://postgres:[YOUR_RDS_PASSWORD]@[YOUR_RDS_ENDPOINT]:5432/basepowersurvey
+   postgresql://postgres:[YOUR_RDS_PASSWORD]@[YOUR_RDS_ENDPOINT]:5432/surveydb
    ```
 
 2. **APP_AWS_REGION**
@@ -293,7 +291,7 @@ Go to Environment variables → Manage variables
 
 5. **S3_BUCKET_NAME**
    ```
-   basepower-survey-images
+   survey-images
    ```
 
 6. **OPENAI_API_KEY**
@@ -315,7 +313,7 @@ Go to Environment variables → Manage variables
 
 ### 3. Critical Build Configuration
 
-**⚠️ ESSENTIAL:** Ensure your project has `amplify.yml` in the root:
+**ESSENTIAL:** Ensure your project has `amplify.yml` in the root:
 
 ```yaml
 version: 1
@@ -469,14 +467,14 @@ Create `.env.local`:
 
 ```env
 # Database
-DATABASE_URL="postgresql://postgres:[password]@[rds-endpoint]:5432/basepowersurvey"
+DATABASE_URL="postgresql://postgres:[password]@[rds-endpoint]:5432/surveydb"
 DATABASE_SSL=true
 
 # AWS Configuration
 APP_AWS_REGION="us-east-2"
 APP_AWS_ACCESS_KEY_ID="[your-access-key]"
 APP_AWS_SECRET_ACCESS_KEY="[your-secret-key]"
-S3_BUCKET_NAME="basepower-survey-images"
+S3_BUCKET_NAME="survey-images"
 
 # Application
 OPENAI_API_KEY="[your-openai-key]"
@@ -494,74 +492,6 @@ npm run dev
 ---
 
 ## Part 8: Cost Optimization & Monitoring
-
-### Monthly Cost Breakdown
-- **RDS t3.micro:** ~$15/month
-- **S3 Storage:** ~$5/month (varies with usage)
-- **AWS Amplify:** ~$10/month
-- **Total:** ~$30/month
-
-### Cost Optimizations Applied
-- **No NAT Gateways:** Saves ~$90/month
-- **Default VPC:** No additional networking costs
-- **S3 Lifecycle Rules:** Automatic cost reduction over time
-- **t3.micro RDS:** Sufficient for most workloads
-
-### Monitoring Setup
-- **CloudWatch:** RDS metrics, S3 usage
-- **Amplify Logs:** Build and runtime logs
-- **Health Checks:** `/api/health` endpoint
-
----
-
-## Part 9: Security Checklist
-
-### Infrastructure Security
-- [ ] RDS in private subnets only
-- [ ] S3 bucket blocks all public access
-- [ ] Security groups restrict PostgreSQL to VPC only
-- [ ] IAM user has minimal required permissions
-- [ ] All data encrypted at rest and in transit
-
-### Application Security
-- [ ] HTTPS enforced by Amplify
-- [ ] Environment variables stored securely
-- [ ] Pre-signed URLs time-limited
-- [ ] UUID-based survey access
-- [ ] No hardcoded credentials
-
-### Operational Security
-- [ ] Regular AWS key rotation
-- [ ] CloudTrail enabled for audit logs
-- [ ] Backup retention configured
-- [ ] Monitoring alerts configured
-
----
-
-## Part 10: Troubleshooting
-
-### Common Issues
-
-**Database Connection Fails:**
-- Check security group allows port 5432 from VPC CIDR
-- Verify DATABASE_URL format and credentials
-- Confirm RDS is in "Available" status
-
-**S3 Upload/Download Fails:**
-- Check IAM permissions for S3 actions
-- Verify CORS configuration includes your domain
-- Confirm bucket name matches environment variable
-
-**Build Failures in Amplify:**
-- Check all required environment variables are set
-- Verify `amplify.yml` exists and is properly formatted
-- Review build logs in Amplify console
-
-**API Routes Return 500 Errors:**
-- Check environment variables are written to `.env` in build
-- Verify database connectivity from Amplify
-- Review application logs in CloudWatch
-
 ### Debug Commands
 
 ```bash
@@ -569,57 +499,34 @@ npm run dev
 aws rds describe-db-instances --region us-east-2
 
 # List S3 objects
-aws s3 ls s3://basepower-survey-images/ --region us-east-2
+aws s3 ls s3://survey-images/ --region us-east-2
 
 # View Amplify apps
 aws amplify list-apps --region us-east-2
 
 # Test database connection
-psql "postgresql://postgres:[password]@[endpoint]:5432/basepowersurvey" -c "SELECT 1;"
+psql "postgresql://postgres:[password]@[endpoint]:5432/surveydb" -c "SELECT 1;"
 ```
-
----
-
-## Part 11: Scaling Considerations
-
-### Current Capacity
-- **RDS:** Handles thousands of concurrent surveys
-- **S3:** Unlimited storage capacity
-- **Amplify:** Auto-scales for traffic
-
-### Scaling Path
-1. **Database:** Upgrade RDS instance class if needed
-2. **Global Distribution:** Add CloudFront for international users
-3. **Caching:** Add ElastiCache for frequent queries
-4. **Analytics:** Integrate QuickSight for reporting
-
-### Performance Monitoring
-- Monitor RDS CPU and storage utilization
-- Track S3 request metrics and costs
-- Watch Amplify build times and deployment success rates
-
----
 
 ## Summary
 
-You now have a complete, production-ready AWS infrastructure for the Base Power Site Survey Tool with:
+You now have a complete, production-ready AWS infrastructure for the Survey Tool with:
 
 ### Created Resources
 | Resource | Name | Purpose |
 |----------|------|---------|
-| Security Group | `basepower-survey-rds-sg` | Database access control |
-| RDS Instance | `basepower-survey-db` | PostgreSQL database |
-| S3 Bucket | `basepower-survey-images` | Image storage |
-| IAM User | `basepower-survey-app` | Application access |
-| IAM Policy | `basepower-survey-s3-policy` | S3 permissions |
-| Amplify App | `basepower-survey` | Frontend hosting |
+| Security Group | `survey-rds-sg` | Database access control |
+| RDS Instance | `survey-db` | PostgreSQL database |
+| S3 Bucket | `survey-images` | Image storage |
+| IAM User | `survey-app` | Application access |
+| IAM Policy | `survey-s3-policy` | S3 permissions |
+| Amplify App | `survey-app` | Frontend hosting |
 
 ### Key Benefits
 - **Secure:** Private database, controlled S3 access
-- **Cost-effective:** ~$30/month vs $120+ with NAT gateways
 - **Scalable:** Auto-scaling components
 - **Maintainable:** Simple architecture, comprehensive monitoring
 
-All resources are tagged with `Project: BasePowerSurvey` for easy identification and cost tracking.
+All resources are tagged with `Project: SurveyTool` for easy identification and cost tracking.
 
 Your survey tool is now ready for production use with a robust, secure, and cost-effective AWS backend!
