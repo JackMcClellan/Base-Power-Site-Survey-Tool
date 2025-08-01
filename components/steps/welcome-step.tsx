@@ -1,6 +1,5 @@
 'use client'
 
-import React from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'

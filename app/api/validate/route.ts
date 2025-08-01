@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { env } from '@/lib/env'
-import { getStepAIConfig, isDataExtractionStep, getNextStepId as getNextStepIdFromConfig } from '@/lib/survey-steps-config'
+import { getStepAIConfig, isDataExtractionStep } from '@/lib/survey-steps-config'
 import { uploadToS3 } from '@/lib/s3'
 import { SurveyRepository, type StepData } from '@/lib/database'
 

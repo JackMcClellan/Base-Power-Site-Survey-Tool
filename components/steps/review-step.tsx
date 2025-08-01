@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { surveyDataAtom, currentStepAtom, retakeModeAtom } from '@/atoms/survey'
 import { SurveyHeader } from '@/components/shared/survey-header'
@@ -30,7 +30,7 @@ export function ReviewStep() {
   const [isLoadingImages, setIsLoadingImages] = useState(true)
   const [backendSurveyData, setBackendSurveyData] = useState<SurveyDataFromBackend | null>(null)
   const [isLoadingSurvey, setIsLoadingSurvey] = useState(true)
-  const { completeSurvey, surveyId, updateCurrentStep } = useSurveyBackend()
+  const { completeSurvey, surveyId } = useSurveyBackend()
 
   // Update status to UNDER_REVIEW when component mounts
   useEffect(() => {

@@ -1,6 +1,5 @@
 'use client'
 
-import React from 'react'
 import { useAtomValue } from 'jotai'
 import { currentStepAtom } from '@/atoms/survey'
 import { SURVEY_STEPS } from '@/config/survey-steps'

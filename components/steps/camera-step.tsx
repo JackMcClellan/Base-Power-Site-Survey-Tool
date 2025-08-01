@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { CameraView } from '@/components/camera-view'
 import { SurveyHeader } from '@/components/shared/survey-header'
@@ -9,8 +9,6 @@ import { SurveyActions } from '@/components/shared/survey-actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useSurveyBackend } from '@/hooks/use-survey-backend'
-
-// Overlays removed - clean camera view only
 
 import { 
   currentStepDataAtom, 
@@ -33,7 +31,7 @@ export function CameraStep() {
   const setCurrentStep = useSetAtom(currentStepAtom)
   const setRetakeMode = useSetAtom(retakeModeAtom)
   const saveStepData = useSetAtom(saveStepDataAtom)
-  const { updateCurrentStep, uploadImage, surveyId } = useSurveyBackend()
+  const { updateCurrentStep, surveyId } = useSurveyBackend()
   
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [isAnalyzingCapture, setIsAnalyzingCapture] = useState(false)
@@ -44,17 +42,9 @@ export function CameraStep() {
   const [isCameraReady, setIsCameraReady] = useState(false)
   const canvasBlobRef = useRef<Promise<Blob> | null>(null)
 
-  // Remove useCamera hook since CameraView handles it
-  
   // Check if this is a data entry step
   const isDataEntryStep = currentStep.stepType === 'data-entry'
   
-  // Related step images are now handled by backend S3 storage
-  
-  // Backend API will handle image analysis after capture
-
-  // Overlays removed - camera now has clean view without any AR elements
-
   // Video element ref for basic capture
   const videoRef = useRef<HTMLVideoElement | null>(null)
 
@@ -297,10 +287,6 @@ export function CameraStep() {
     // Check video readiness
     if (videoElement.readyState < 2) {
       console.error('Video element not ready:', videoElement.readyState)
-      // Wait a bit and try again
-      setTimeout(() => {
-        handleCapture()
-      }, 500)
       return
     }
     
@@ -310,9 +296,6 @@ export function CameraStep() {
     }
     
     try {
-      // Add timestamp to ensure uniqueness
-      const captureTimestamp = Date.now()
-      
       // Step 1: Capture image immediately using basic capture method
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
@@ -456,7 +439,7 @@ export function CameraStep() {
     } catch (error) {
       console.error('Capture failed:', error)
     }
-  }, [isCameraReady, currentStep.id, currentStep.title, surveyId, uploadImage, saveStepData, updateCurrentStep, retryCount, retakeMode.isRetaking, setCurrentStep])
+  }, [isCameraReady, currentStep.id, surveyId, saveStepData, retryCount, retakeMode.isRetaking, setCurrentStep])
 
   // Use helper function from survey config instead of duplicating logic
 

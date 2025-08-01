@@ -44,47 +44,7 @@ export function generateS3Key(userId: string, fileName: string, folder: 'photos'
   return `${userId}/${folder}/${cleanFileName}`
 }
 
-// Generate a presigned URL for secure uploads
-export async function generatePresignedUploadUrl({
-  userId,
-  stepId,
-  fileName,
-  contentType,
-}: z.infer<typeof UploadRequestSchema>) {
-  const s3Client = getS3Client()
-  const key = `${userId}/step_${stepId}.jpg`
 
-  const command = new PutObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-    ContentType: contentType,
-  })
-
-  const presignedUrl = await getSignedUrl(s3Client, command, {
-    expiresIn: 3600, // 1 hour
-  })
-
-  return { presignedUrl, key }
-}
-
-// Generate a presigned URL for downloads
-export async function generatePresignedDownloadUrl({
-  userId,
-  fileName,
-}: z.infer<typeof DownloadRequestSchema>) {
-  const s3Client = getS3Client()
-  const key = generateS3Key(userId, fileName)
-  const command = new GetObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-  })
-
-  const presignedUrl = await getSignedUrl(s3Client, command, {
-    expiresIn: 3600, // 1 hour
-  })
-
-  return presignedUrl
-}
 
 // Direct upload utility (server-side only)
 export async function uploadToS3(

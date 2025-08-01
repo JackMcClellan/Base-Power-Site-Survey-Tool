@@ -98,6 +98,7 @@ Create a `.env` file in the root directory:
 | `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key | `xyz123...` |
 | `AWS_S3_BUCKET_NAME` | S3 bucket for photo storage | `base-power-survey-photos` |
 | `OPENAI_API_KEY` | OpenAI API key for validation | `sk-proj-...` |
+| `X_API_KEY` | Internal API key for validation on getting all survey results | `xyz123...` |
 
 ### Installation & Setup
 
@@ -122,8 +123,7 @@ Create a `.env` file in the root directory:
 
 4. **Configure environment**
    ```bash
-   cp .env.example .env
-   # Edit .env with your actual credentials
+   # Create .env with your actual credentials
    ```
 
 5. **Start development server**
@@ -189,14 +189,6 @@ Benefits of AWS Amplify deployment:
 - **Environment management** for staging and production
 - **Cost optimization** within the AWS ecosystem
 
-### Alternative: Vercel
-
-For non-AWS environments:
-
-1. **Connect repository** to Vercel
-2. **Add environment variables** in project settings  
-3. **Deploy** - automatic builds on push to main
-
 ## AWS Infrastructure Setup
 
 This application requires AWS infrastructure including RDS PostgreSQL, S3 storage, and IAM permissions. 
@@ -226,7 +218,7 @@ After completing the AWS setup, you'll need these environment variables:
 | `APP_AWS_REGION` | AWS region for RDS and S3 | `us-east-2` |
 | `APP_AWS_ACCESS_KEY_ID` | AWS IAM access key | `AKIA...` |
 | `APP_AWS_SECRET_ACCESS_KEY` | AWS IAM secret key | `xyz123...` |
-| `S3_BUCKET_NAME` | S3 bucket for photo storage | `basepower-survey-images` |
+| `S3_BUCKET_NAME` | S3 bucket for photo storage | `survey-images` |
 | `OPENAI_API_KEY` | OpenAI API key for validation | `sk-proj-...` |
 | `X_API_KEY` | API key for surveys endpoint (optional) | `your-secure-api-key` |
 
@@ -324,19 +316,6 @@ Example Response:
   ]
 }
 ```
-
-## Testing
-
-The application includes comprehensive test image sets in the `test_images/` directory for validating AI analysis across all survey steps.
-
-### User Testing Page
-
-For simplified user testing, the application includes a dedicated `/user-test` page that:
-- **Auto-generates** a unique survey UUID on each visit
-- **Automatically redirects** to `/survey/[uuid]` 
-- **No manual UUID required** - testers simply visit `/user-test`
-
-This is ideal for user testing sessions where you want participants to quickly start a new survey without technical setup.
 
 ### Mobile Testing with HTTPS
 

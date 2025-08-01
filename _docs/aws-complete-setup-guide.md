@@ -94,7 +94,7 @@ Click "Create database" (**Takes 5-10 minutes**)
 - Click "Create bucket"
 
 **Bucket Configuration:**
-- **Bucket name:** `survey-images` (must be globally unique)
+- **Bucket name:** `survey-images` (must be globally unique - adjust as needed)
 - **Region:** US East (Ohio) us-east-2
 - **Object Ownership:** ACLs disabled
 - **Block Public Access:** Keep all 4 options checked
@@ -206,46 +206,28 @@ Click "Create bucket"
 
 ### 2. Create Database Schema
 
-**Connect to database and run:**
+The application uses Prisma to manage the database schema. The schema will be automatically created when you run the Prisma commands. The actual database schema is defined in `prisma/schema.prisma` and uses this simplified structure:
 
 ```sql
+-- This will be created automatically by Prisma
 CREATE TABLE surveys (
     id SERIAL PRIMARY KEY,
-    user_id UUID NOT NULL UNIQUE,
+    user_id VARCHAR NOT NULL UNIQUE,
     current_step INTEGER DEFAULT 0,
-    status VARCHAR(20) DEFAULT 'in_progress',
+    status VARCHAR DEFAULT 'in_progress',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     completed_at TIMESTAMP NULL,
     
-    -- Survey Data Fields
-    meter_photos JSONB,
-    analysis_results JSONB,
-    survey_responses JSONB,
-    
-    -- Metadata
-    device_info JSONB,
-    session_metadata JSONB
+    -- Single JSON field to store all step data
+    step_data JSONB DEFAULT '[]'
 );
 
-CREATE INDEX idx_surveys_user_id ON surveys(user_id);
-CREATE INDEX idx_surveys_status ON surveys(status);
-CREATE INDEX idx_surveys_created_at ON surveys(created_at);
-
--- Add updated_at trigger
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_surveys_updated_at 
-    BEFORE UPDATE ON surveys 
-    FOR EACH ROW 
-    EXECUTE FUNCTION update_updated_at_column();
+-- Indexes will be automatically created by Prisma
+CREATE UNIQUE INDEX surveys_user_id_key ON surveys(user_id);
 ```
+
+**Note:** You don't need to run these SQL commands manually. Prisma will handle the database schema creation during deployment.
 
 ---
 
@@ -299,55 +281,28 @@ Go to Environment variables → Manage variables
    [Your OpenAI API key]
    ```
 
+7. **X_API_KEY**
+   ```
+   [Your secure API key for surveys endpoint]
+   ```
+
 **Optional Variables:**
 
-7. **DATABASE_SSL** (defaults to false)
+8. **DATABASE_SSL** (defaults to false)
    ```
    true
    ```
-
-8. **NEXT_PUBLIC_APP_URL** (update after first deploy)
-   ```
-   https://[branch-name].[app-id].amplifyapp.com
-   ```
-
-### 3. Critical Build Configuration
-
-**ESSENTIAL:** Ensure your project has `amplify.yml` in the root:
-
-```yaml
-version: 1
-frontend:
-  phases:
-    preBuild:
-      commands:
-        - npm ci
-        # Write environment variables to .env for SSR access
-        - echo "DATABASE_URL=$DATABASE_URL" > .env
-        - echo "APP_AWS_REGION=$APP_AWS_REGION" >> .env
-        - echo "APP_AWS_ACCESS_KEY_ID=$APP_AWS_ACCESS_KEY_ID" >> .env
-        - echo "APP_AWS_SECRET_ACCESS_KEY=$APP_AWS_SECRET_ACCESS_KEY" >> .env
-        - echo "S3_BUCKET_NAME=$S3_BUCKET_NAME" >> .env
-        - echo "OPENAI_API_KEY=$OPENAI_API_KEY" >> .env
-        - echo "DATABASE_SSL=$DATABASE_SSL" >> .env
-        - echo "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" >> .env
-    build:
-      commands:
-        - npm run build
-  artifacts:
-    baseDirectory: .next
-    files:
-      - '**/*'
-  cache:
-    paths:
-      - node_modules/**/*
-```
 
 **Why This Is Critical:**
 - AWS Amplify environment variables are only available during BUILD time
 - They are NOT available to server-side runtime by default
 - The `amplify.yml` writes them to `.env` for API routes access
 - **Without this file, deployed app will fail with "Missing environment variables"**
+
+**Important:** Make sure your `amplify.yml` includes the X_API_KEY environment variable:
+```yaml
+- env | grep -e X_API_KEY >> .env
+```
 
 ---
 
@@ -360,17 +315,16 @@ The application provides these endpoints:
 ```typescript
 // Survey Management
 GET  /api/survey/[uuid]        // Get survey status and data
-POST /api/survey/[uuid]        // Create or update survey
-PUT  /api/survey/[uuid]/step   // Update current step
-POST /api/survey/[uuid]/complete // Mark survey as completed
+POST /api/survey/[uuid]        // Create or update survey data
+GET  /api/surveys              // List surveys with optional filtering (requires X-API-Key)
 
-// File Upload Management
+// File Upload & Validation
 POST /api/upload/presigned     // Get pre-signed upload URL
-POST /api/upload/confirm       // Confirm successful upload
+POST /api/validate             // Submit photo for AI validation
 GET  /api/images/[uuid]        // Get pre-signed download URLs
 
 // System Health
-GET  /api/health              // System health check
+GET  /api/health              // Simple health check
 ```
 
 ### Data Flow
@@ -414,11 +368,6 @@ After first deployment:
 ]
 ```
 
-### 2. Update Environment Variables
-
-- Update `NEXT_PUBLIC_APP_URL` in Amplify with your actual URL
-- Redeploy to apply changes
-
 ---
 
 ## Part 6: Deployment and Testing
@@ -443,14 +392,8 @@ Visit: `https://your-amplify-url.amplifyapp.com/api/health`
 Expected response:
 ```json
 {
-  "success": true,
-  "status": "healthy",
-  "checks": {
-    "database": true,
-    "s3": true,
-    "timestamp": "2024-01-01T00:00:00.000Z"
-  },
-  "message": "All services are operational"
+  "status": "ok",
+  "timestamp": "2024-01-01T00:00:00.000Z"
 }
 ```
 
@@ -470,7 +413,7 @@ Create `.env.local`:
 DATABASE_URL="postgresql://postgres:[password]@[rds-endpoint]:5432/surveydb"
 DATABASE_SSL=true
 
-# AWS Configuration
+# AWS Configuration  
 APP_AWS_REGION="us-east-2"
 APP_AWS_ACCESS_KEY_ID="[your-access-key]"
 APP_AWS_SECRET_ACCESS_KEY="[your-secret-key]"
@@ -478,7 +421,7 @@ S3_BUCKET_NAME="survey-images"
 
 # Application
 OPENAI_API_KEY="[your-openai-key]"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
+X_API_KEY="[your-secure-api-key]"
 ```
 
 ### 2. Local Testing
