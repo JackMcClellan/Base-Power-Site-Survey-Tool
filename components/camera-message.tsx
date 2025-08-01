@@ -1,10 +1,9 @@
 'use client'
 
-import { useAtom } from 'jotai'
+import { useAtom, useSetAtom } from 'jotai'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cameraMessageAtom, hideCameraMessageAtom } from '@/atoms/camera'
-import { useSetAtom } from 'jotai'
 
 export function CameraMessage() {
   const [messageState] = useAtom(cameraMessageAtom)

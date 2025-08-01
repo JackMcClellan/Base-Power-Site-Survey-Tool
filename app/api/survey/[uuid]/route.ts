@@ -192,7 +192,8 @@ export async function PATCH(
 
     const uuidSchema = z.string().uuid()
     const validatedUuid = uuidSchema.parse(uuid)
-    const validatedBody = CompleteSurveySchema.parse(body)
+    // Validate request body format
+    CompleteSurveySchema.parse(body)
 
     const existingSurvey = await SurveyRepository.findByUserId(validatedUuid)
     

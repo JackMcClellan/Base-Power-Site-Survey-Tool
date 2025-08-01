@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { CameraView } from '@/components/camera-view'
 import { SurveyHeader } from '@/components/shared/survey-header'
@@ -51,12 +51,7 @@ export function CameraStep() {
   // Check if this is a data entry step
   const isDataEntryStep = currentStep.stepType === 'data-entry'
   
-  // Get related step image for data entry steps
-  const relatedStepImage = useMemo(() => {
-    // Images are now stored in S3, not in local state
-    // This will need to be fetched from backend when needed
-    return null
-  }, [isDataEntryStep, currentStep.dataEntryConfig, surveyData])
+  // Related step images are now handled by backend S3 storage
   
   // Backend API will handle image analysis after capture
 
@@ -441,7 +436,7 @@ export function CameraStep() {
                 try {
                   blob = await canvasBlobRef.current
                   canvasBlobRef.current = null
-                } catch (blobError) {
+                } catch {
                   const response = await fetch(imageData)
                   blob = await response.blob()
                 }
