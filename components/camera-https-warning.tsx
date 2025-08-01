@@ -41,7 +41,7 @@ export function CameraHttpsWarning({ onRetry }: CameraHttpsWarningProps) {
             
             <ul className="space-y-2 list-disc list-inside">
               <li>Access the site via HTTPS</li>
-              <li>Use localhost for development</li>
+              <li>Use localhost for local testing</li>
               <li>Contact your administrator for HTTPS setup</li>
             </ul>
           </div>

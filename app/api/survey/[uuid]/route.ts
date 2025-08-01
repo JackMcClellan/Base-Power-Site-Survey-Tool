@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { SurveyRepository, UpdateSurveyInput } from '@/lib/database'
+import { SurveyRepository, UpdateSurveyInput, StepDataSchema } from '@/lib/database'
 
 // Validation schemas
 const UpdateStepSchema = z.object({
@@ -9,10 +9,8 @@ const UpdateStepSchema = z.object({
 
 const CreateOrUpdateSurveySchema = z.object({
   currentStep: z.number().optional(),
-  status: z.enum(['IN_PROGRESS', 'COMPLETED']).optional(),
-  surveyData: z.record(z.unknown()).optional(),
-  stepData: z.record(z.unknown()).optional(),
-  meterPhotos: z.record(z.unknown()).optional(),
+  status: z.enum(['IN_PROGRESS', 'UNDER_REVIEW', 'COMPLETED']).optional(),
+  stepData: z.array(StepDataSchema).optional(),
 })
 
 const CompleteSurveySchema = z.object({
@@ -42,8 +40,7 @@ export async function GET(
         createdAt: survey.createdAt,
         updatedAt: survey.updatedAt,
         completedAt: survey.completedAt,
-        meterPhotos: survey.meterPhotos,
-        surveyResponses: survey.surveyResponses,
+        stepData: survey.stepData || [],
       },
     })
   } catch (error) {
@@ -80,15 +77,7 @@ export async function POST(
     const updateData: UpdateSurveyInput = {}
     if (validatedBody.currentStep !== undefined) updateData.currentStep = validatedBody.currentStep
     if (validatedBody.status !== undefined) updateData.status = validatedBody.status
-    if (validatedBody.surveyData !== undefined) updateData.surveyResponses = validatedBody.surveyData
-    if (validatedBody.stepData !== undefined) {
-      // stepData is now saved to surveyResponses for storing step information including entered values
-      updateData.surveyResponses = {
-        ...(updateData.surveyResponses || {}),
-        ...validatedBody.stepData
-      }
-    }
-    if (validatedBody.meterPhotos !== undefined) updateData.meterPhotos = validatedBody.meterPhotos
+    if (validatedBody.stepData !== undefined) updateData.stepData = validatedBody.stepData
 
     let survey = await SurveyRepository.findByUserId(validatedUuid)
     

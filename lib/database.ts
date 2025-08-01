@@ -21,28 +21,42 @@ const prismaOptions: ConstructorParameters<typeof PrismaClient>[0] = env.DATABAS
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient(prismaOptions)
 
-if (env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+globalForPrisma.prisma = prisma
 
-// Validation schemas (much simpler now!)
+// Step data schema
+export const StepDataSchema = z.object({
+  step_id: z.string(),
+  photo_type: z.string(),
+  s3_info: z.string(),
+  analysis_result: z.object({
+    confidence: z.number(),
+    is_valid: z.boolean(),
+    extracted_value: z.string().optional(),
+    structured_data: z.record(z.string()).optional(),
+    ai_feedback: z.string()
+  })
+})
+
+export type StepData = z.infer<typeof StepDataSchema>
+
+// Validation schemas
 export const CreateSurveySchema = z.object({
   userId: z.string().uuid(),
   currentStep: z.number().optional(),
-  status: z.enum(['IN_PROGRESS', 'COMPLETED']).optional(),
-  meterPhotos: z.record(z.unknown()).optional(),
-  surveyResponses: z.record(z.unknown()).optional(),
+  status: z.enum(['IN_PROGRESS', 'UNDER_REVIEW', 'COMPLETED']).optional(),
+  stepData: z.array(StepDataSchema).optional(),
 })
 
 export const UpdateSurveySchema = z.object({
   currentStep: z.number().optional(),
-  status: z.enum(['IN_PROGRESS', 'COMPLETED']).optional(),
-  meterPhotos: z.record(z.unknown()).optional(),
-  surveyResponses: z.record(z.unknown()).optional(),
+  status: z.enum(['IN_PROGRESS', 'UNDER_REVIEW', 'COMPLETED']).optional(),
+  stepData: z.array(StepDataSchema).optional(),
 })
 
 export type CreateSurveyInput = z.infer<typeof CreateSurveySchema>
 export type UpdateSurveyInput = z.infer<typeof UpdateSurveySchema>
 
-// Database operations (SO much simpler!)
+// Database operations
 export class SurveyRepository {
   static async findByUserId(userId: string) {
     return await prisma.survey.findUnique({
@@ -56,8 +70,7 @@ export class SurveyRepository {
         userId: surveyData.userId,
         currentStep: surveyData.currentStep ?? 0,
         status: surveyData.status ?? 'IN_PROGRESS',
-        meterPhotos: surveyData.meterPhotos as any,
-        surveyResponses: surveyData.surveyResponses as any,
+        stepData: surveyData.stepData ?? [],
       }
     })
   }
@@ -72,24 +85,25 @@ export class SurveyRepository {
       throw new Error('Survey not found')
     }
 
-    // Merge JSON fields instead of overwriting
-    const mergedData: any = {
+    // Handle stepData merging
+    let mergedStepData = existing.stepData as StepData[]
+    
+    if (updates.stepData) {
+      // If new stepData is provided, append or update existing steps
+      mergedStepData = updates.stepData
+    }
+
+    // Prepare update data
+    const updateData: any = {
       ...updates,
-      meterPhotos: updates.meterPhotos ? {
-        ...(existing.meterPhotos as any || {}),
-        ...(updates.meterPhotos as any)
-      } : existing.meterPhotos,
-      surveyResponses: updates.surveyResponses ? {
-        ...(existing.surveyResponses as any || {}),
-        ...(updates.surveyResponses as any)
-      } : existing.surveyResponses,
+      stepData: mergedStepData,
       // Auto-set completedAt when status becomes COMPLETED
       ...(updates.status === 'COMPLETED' && { completedAt: new Date() })
     }
 
     return await prisma.survey.update({
       where: { userId },
-      data: mergedData
+      data: updateData
     })
   }
 
@@ -98,6 +112,33 @@ export class SurveyRepository {
     if (existing) return existing
     
     return await this.create({ userId })
+  }
+
+  // Helper method to add or update a single step
+  static async updateStep(userId: string, stepData: StepData) {
+    const existing = await this.findByUserId(userId)
+    if (!existing) {
+      throw new Error('Survey not found')
+    }
+
+    const existingSteps = (existing.stepData as StepData[]) || []
+    
+    // Find and update existing step or add new one
+    const stepIndex = existingSteps.findIndex(s => s.step_id === stepData.step_id)
+    
+    if (stepIndex >= 0) {
+      existingSteps[stepIndex] = stepData
+    } else {
+      existingSteps.push(stepData)
+    }
+
+    // Sort steps by step_id for consistency
+    existingSteps.sort((a, b) => parseFloat(a.step_id) - parseFloat(b.step_id))
+
+    return await this.update(userId, {
+      stepData: existingSteps,
+      currentStep: Math.max(parseFloat(stepData.step_id), existing.currentStep)
+    })
   }
 }
 

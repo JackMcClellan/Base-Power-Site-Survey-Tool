@@ -69,12 +69,15 @@ export default function SurveyPage() {
           return
         }
 
-        // Only update step if we're still at welcome (step 0) and backend has progress
-        if (currentStep === 0 && surveyData.currentStep && surveyData.currentStep > 0) {
+        // If survey is under review, always go to step 13 (review step)
+        if (surveyData.status === 'UNDER_REVIEW') {
+          setCurrentStep(13)
+        } else if (currentStep === 0 && surveyData.currentStep && surveyData.currentStep > 0) {
+          // Only update step if we're still at welcome (step 0) and backend has progress
           const backendStep = surveyData.currentStep
           
-          // Get all valid step IDs including guides and special steps
-          const validStepIds = [0, ...SURVEY_STEPS.map(step => step.id)]
+          // Get all valid step IDs including guides and special steps, and review step (13)
+          const validStepIds = [0, ...SURVEY_STEPS.map(step => step.id), 13]
           
           // Only set the step if it's valid
           if (validStepIds.includes(backendStep)) {

@@ -15,7 +15,6 @@ import { useSurveyBackend } from '@/hooks/use-survey-backend'
 import { 
   currentStepDataAtom, 
   surveyProgressAtom, 
-  nextStepAtom, 
   saveStepDataAtom,
   surveyDataAtom,
   retakeModeAtom,
@@ -23,7 +22,7 @@ import {
   type AnalysisResult
 } from '@/atoms/survey'
 
-import { SURVEY_STEPS } from '@/config/survey-steps'
+import { getNextStepId as getNextStepIdFromConfig, getReviewStepId } from '@/lib/survey-steps-config'
 
 
 export function CameraStep() {
@@ -31,7 +30,6 @@ export function CameraStep() {
   const progress = useAtomValue(surveyProgressAtom)
   const surveyData = useAtomValue(surveyDataAtom)
   const retakeMode = useAtomValue(retakeModeAtom)
-  const nextStep = useSetAtom(nextStepAtom)
   const setCurrentStep = useSetAtom(currentStepAtom)
   const setRetakeMode = useSetAtom(retakeModeAtom)
   const saveStepData = useSetAtom(saveStepDataAtom)
@@ -82,7 +80,7 @@ export function CameraStep() {
         setTimeout(() => {
           if (currentVideo.srcObject) {
             currentVideo.play().catch(() => {
-              // Ignore play errors in production
+              // Ignore play errors
             })
           }
         }, 100)
@@ -101,10 +99,19 @@ export function CameraStep() {
 
   // For data entry steps, fetch and analyze the related image automatically
   useEffect(() => {
+    console.log('Data entry effect check:', {
+      isDataEntryStep,
+      relatedStepId: currentStep.dataEntryConfig?.relatedStepId,
+      surveyId,
+      hasAnalysisResult: !!analysisResult,
+      isLoadingRelatedImage
+    })
+    
     if (isDataEntryStep && currentStep.dataEntryConfig?.relatedStepId && surveyId && !analysisResult && !isLoadingRelatedImage) {
+      console.log('Starting fetchAndAnalyzeRelatedImage for step:', currentStep.id)
       fetchAndAnalyzeRelatedImage()
     }
-  }, [isDataEntryStep, currentStep.dataEntryConfig?.relatedStepId, currentStep.id, surveyId])
+  }, [isDataEntryStep, currentStep.dataEntryConfig?.relatedStepId, currentStep.id, surveyId, analysisResult, isLoadingRelatedImage])
 
   const fetchAndAnalyzeRelatedImage = useCallback(async () => {
     if (!currentStep.dataEntryConfig?.relatedStepId || !surveyId) return
@@ -132,25 +139,15 @@ export function CameraStep() {
       const relatedStepId = currentStep.dataEntryConfig.relatedStepId
       let relatedImageUrl = null
       
-      // The keys are full S3 paths like "surveys/userId/step-10/timestamp-step-10-meter_photo-timestamp.jpg"
-      // We need to check if the key contains both the step ID and 'meter_photo' in the path
-      for (const [key, url] of Object.entries(imageResult.data.urls)) {
-        // Check if this key is for the related step and is a meter photo
-        if (key.includes(`/step-${relatedStepId}/`) && key.includes('-meter_photo-')) {
-          relatedImageUrl = url as string
-          break
-        }
-      }
+      // The keys are now simple: "userId/step_X.jpg"
+      const expectedKey = `step_${relatedStepId}.jpg`
       
-      // Fallback: Also check for keys that might be stored differently
-      if (!relatedImageUrl) {
-        // Try to find any key that contains the step number
-        for (const [key, url] of Object.entries(imageResult.data.urls)) {
-          if (key.includes(`step-${relatedStepId}`) || key.includes(`step_${relatedStepId}`)) {
-            console.log(`Found image with alternate key pattern: ${key}`)
-            relatedImageUrl = url as string
-            break
-          }
+      for (const [key, url] of Object.entries(imageResult.data.urls)) {
+        // Check if this key matches the expected pattern
+        if (key.endsWith(expectedKey)) {
+          relatedImageUrl = url as string
+          console.log(`Found image for step ${relatedStepId}: ${key}`)
+          break
         }
       }
       
@@ -170,20 +167,11 @@ export function CameraStep() {
       // Step 3: Send to AI for analysis
       const formData = new FormData()
       formData.append('image', blob, 'related-image.jpg')
-      formData.append('step', `data-entry-${currentStep.id}`)
-      formData.append('timestamp', new Date().toISOString())
-      formData.append('isDataExtraction', 'true')
+      formData.append('stepNumber', currentStep.id.toString())
+      formData.append('surveyId', surveyId)
       
-      // Add AI configuration
-      if (currentStep.aiConfig) {
-        formData.append('userPrompt', currentStep.aiConfig.userPrompt)
-        if (currentStep.aiConfig.structuredFields) {
-          formData.append('structuredFields', JSON.stringify(currentStep.aiConfig.structuredFields))
-        }
-      }
-      
-      // Call backend API for analysis
-      const analysisResponse = await fetch('/api/analyze-meter', {
+      // Call backend API for validation
+      const analysisResponse = await fetch('/api/validate', {
         method: 'POST',
         body: formData,
       })
@@ -211,14 +199,12 @@ export function CameraStep() {
       setIsLoadingRelatedImage(false)
       
       setAnalysisResult({
-        overall: { 
-          passed: false, 
-          confidence: 0, 
-          message: 'Unable to extract data automatically. Please enter manually.' 
-        }
+        isValid: false, 
+        message: 'Unable to extract data automatically. Please enter manually.',
+        confidence: 0 
       })
     }
-  }, [currentStep.dataEntryConfig?.relatedStepId, currentStep.id, currentStep.aiConfig, surveyId])
+  }, [currentStep.dataEntryConfig?.relatedStepId, currentStep.id, surveyId])
 
   const handleDataEntrySubmit = async () => {
     const cleanValue = dataEntryValue.replace(/[^0-9]/g, '')
@@ -240,7 +226,7 @@ export function CameraStep() {
     
     const stepData = {
       timestamp: new Date(),
-      action: 'retry' as const,
+      action: 'retry' as const, // Using retry for data entry
       validated: true,
       validationResult: { 
         passed: true, 
@@ -253,39 +239,43 @@ export function CameraStep() {
     
     saveStepData(currentStep.id, stepData)
     
+    try {
+      // Use validate API to save data entry (consistent with photo and skip)
+      const formData = new FormData()
+      formData.append('stepNumber', currentStep.id.toString())
+      formData.append('surveyId', surveyId!)
+      formData.append('dataEntry', 'true')
+      formData.append('enteredValue', `${cleanValue}A`)
+      
+      const response = await fetch('/api/validate', {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Data entry API failed: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      console.log('Data entry saved:', result)
+      
+    } catch (error) {
+      console.error('Failed to save data entry:', error)
+      // Continue anyway - don't block user progress
+    }
+    
     // Get the actual next step ID
-    const nextStepId = getNextStepId(currentStep.id)
+    const nextStepId = getNextStepIdFromConfig(currentStep.id)
     
     // Check if in retake mode
     if (retakeMode.isRetaking && retakeMode.returnToReview) {
-      // Don't update backend step number during retake
-      await updateCurrentStep({ 
-        step: currentStep.id, // Keep the same step number
-        stepData: {
-          [`step_${currentStep.id}`]: {
-            ...stepData,
-            enteredValue: `${cleanValue}A`
-          }
-        }
-      })
-      
       // Clear retake mode and return to review
       setRetakeMode({ isRetaking: false, returnToReview: false })
-      const reviewStepNumber = Math.max(...SURVEY_STEPS.filter(step => step.stepType !== 'guide').map(step => step.id)) + 1
+      const reviewStepNumber = getReviewStepId()
       setCurrentStep(reviewStepNumber)
     } else {
-      // Normal flow - update backend with actual next step ID
-      await updateCurrentStep({ 
-        step: nextStepId,
-        stepData: {
-          [`step_${currentStep.id}`]: {
-            ...stepData,
-            enteredValue: `${cleanValue}A`
-          }
-        }
-      })
-      
-      nextStep()
+      // Normal flow - advance to next step
+      setCurrentStep(nextStepId)
     }
   }
 
@@ -396,23 +386,15 @@ export function CameraStep() {
           
           // Create form data for API upload
           const formData = new FormData()
-          formData.append('image', blob, `capture-step-${currentStep.id}-${captureTimestamp}.jpg`)
-          formData.append('step', currentStep.title.toLowerCase().replace(/\s+/g, '-'))
-          formData.append('timestamp', new Date().toISOString())
-          
-          // Add AI configuration if available
-          if (currentStep.aiConfig) {
-            formData.append('userPrompt', currentStep.aiConfig.userPrompt)
-            if (currentStep.aiConfig.structuredFields) {
-              formData.append('structuredFields', JSON.stringify(currentStep.aiConfig.structuredFields))
-            }
-          }
-          
-          // Call backend API for analysis
-          const analysisResponse = await fetch('/api/analyze-meter', {
-            method: 'POST',
-            body: formData,
-          })
+          formData.append('image', blob, `step_${currentStep.id}.jpg`)
+          formData.append('stepNumber', currentStep.id.toString())
+          formData.append('surveyId', surveyId!)
+                
+      // Call backend API for validation
+      const analysisResponse = await fetch('/api/validate', {
+        method: 'POST',
+        body: formData,
+      })
           
           if (!analysisResponse.ok) {
             throw new Error(`Analysis API failed: ${analysisResponse.status}`)
@@ -425,65 +407,37 @@ export function CameraStep() {
           setIsAnalyzingCapture(false)
           
           // If the image passed validation, automatically save progress
-          if (analysisResult.overall?.passed) {
+          if (analysisResult.isValid) {
             console.log('Image passed validation, auto-saving progress...')
             
-            // Upload image and save progress automatically
-            try {
-              // Get the blob from canvas reference if available
-              let blob: Blob
-              if (canvasBlobRef.current) {
-                try {
-                  blob = await canvasBlobRef.current
-                  canvasBlobRef.current = null
-                } catch {
-                  const response = await fetch(imageData)
-                  blob = await response.blob()
-                }
-              } else {
-                const response = await fetch(imageData)
-                blob = await response.blob()
-              }
-              
-              const file = new File([blob], `step-${currentStep.id}-capture.jpg`, { type: 'image/jpeg' })
-              
-              console.log('Auto-saving: Uploading image to S3...')
-              await uploadImage({
-                file,
-                stepId: currentStep.id,
-                imageType: 'meter_photo'
-              })
-              console.log('Auto-saving: Image uploaded successfully')
-              
-              // Save step data
-              const stepData = {
-                timestamp: new Date(),
-                action: 'capture' as const,
-                validated: true,
-                validationResult: analysisResult.overall,
-                imageUploaded: true,
-                retryCount: retryCount
-              }
-              
-              saveStepData(currentStep.id, stepData)
-              
-              // Update backend with completed step
-              await updateCurrentStep({ 
-                step: currentStep.id,
-                stepData: {
-                  [`step_${currentStep.id}`]: {
-                    ...stepData,
-                    extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null,
-                    structuredData: ('structuredData' in analysisResult ? analysisResult.structuredData : undefined) || undefined
-                  }
-                }
-              })
-              
-              console.log('Auto-save complete! Progress saved.')
-            } catch (autoSaveError) {
-              console.error('Auto-save failed:', autoSaveError)
-              // Don't show error to user - they can still manually proceed
+            // The validate API has already uploaded the image and saved to database
+            // We only need to update local state and advance the step
+            
+            // Save step data locally
+            const stepData = {
+              timestamp: new Date(),
+              action: 'capture' as const,
+              validated: true,
+              validationResult: {
+                passed: analysisResult.isValid,
+                confidence: analysisResult.confidence,
+                message: analysisResult.message
+              },
+              imageUploaded: true, // Images are always uploaded now
+              retryCount: retryCount
             }
+            
+            saveStepData(currentStep.id, stepData)
+            
+            // The backend has already updated the step in the database
+            // Calculate next step locally and update frontend state
+            if (analysisResult.isValid && !retakeMode.isRetaking) {
+              const nextStepId = getNextStepIdFromConfig(currentStep.id)
+              console.log('Backend validated image, advancing to step:', nextStepId)
+              setCurrentStep(nextStepId)
+            }
+            
+            console.log('Auto-save complete! Progress saved.')
           }
           
         } catch (error) {
@@ -492,7 +446,9 @@ export function CameraStep() {
           
           // Create fallback result
           setAnalysisResult({
-            overall: { passed: false, confidence: 0, message: 'Backend analysis failed - please try again' }
+            isValid: false,
+            message: 'Backend analysis failed - please try again',
+            confidence: 0
           })
         }
       }, 500) // Shorter delay since we're using backend
@@ -500,23 +456,9 @@ export function CameraStep() {
     } catch (error) {
       console.error('Capture failed:', error)
     }
-  }, [isCameraReady, currentStep.aiConfig, currentStep.id, currentStep.title])
+  }, [isCameraReady, currentStep.id, currentStep.title, surveyId, uploadImage, saveStepData, updateCurrentStep, retryCount, retakeMode.isRetaking, setCurrentStep])
 
-  // Add helper function to get next step ID
-  const getNextStepId = (currentId: number) => {
-    const stepSequence = SURVEY_STEPS
-      .map(step => step.id)
-      .sort((a, b) => a - b)
-    
-    const currentIndex = stepSequence.indexOf(currentId)
-    if (currentIndex >= 0 && currentIndex < stepSequence.length - 1) {
-      return stepSequence[currentIndex + 1]
-    }
-    
-    // If not found in sequence or at end, go to review
-    const maxStepId = Math.max(...SURVEY_STEPS.filter(step => step.stepType !== 'guide').map(step => step.id))
-    return maxStepId + 1 // Review step
-  }
+  // Use helper function from survey config instead of duplicating logic
 
   // Handle proceeding to next step after analysis
   const handleProceed = useCallback(async () => {
@@ -528,165 +470,58 @@ export function CameraStep() {
       const alreadySaved = currentStepData?.validated && currentStepData?.imageUploaded
       
       if (!alreadySaved) {
-        // If not auto-saved (e.g., user clicked continue before validation), save now
-        console.log('Data not auto-saved, saving now...')
-        
-        // Upload image to S3 first
-        if (capturedImage) {
-          try {
-            console.log('Converting captured image to blob...')
-            
-            let blob: Blob
-          
-          // First try to use the canvas blob if available (most reliable)
-          if (canvasBlobRef.current) {
-            try {
-              console.log('Using canvas blob method...')
-              blob = await canvasBlobRef.current
-              canvasBlobRef.current = null // Clear after use
-            } catch (canvasError) {
-              console.warn('Canvas blob failed:', canvasError)
-              
-              // Fallback to fetch method
-              try {
-                const response = await fetch(capturedImage)
-                if (!response.ok) {
-                  throw new Error(`Failed to fetch captured image: ${response.status}`)
-                }
-                blob = await response.blob()
-              } catch (fetchError) {
-                console.warn('Fetch also failed, trying base64 decode:', fetchError)
-                
-                // Last resort: manually convert base64 to blob
-                const base64Data = capturedImage.split(',')[1]
-                if (!base64Data) {
-                  throw new Error('Invalid data URL format')
-                }
-                
-                const byteCharacters = atob(base64Data)
-                const byteNumbers = new Array(byteCharacters.length)
-                for (let i = 0; i < byteCharacters.length; i++) {
-                  byteNumbers[i] = byteCharacters.charCodeAt(i)
-                }
-                const byteArray = new Uint8Array(byteNumbers)
-                blob = new Blob([byteArray], { type: 'image/jpeg' })
-              }
-            }
-          } else {
-            // No canvas blob available, use fetch approach
-            try {
-              const response = await fetch(capturedImage)
-              if (!response.ok) {
-                throw new Error(`Failed to fetch captured image: ${response.status}`)
-              }
-              blob = await response.blob()
-            } catch (fetchError) {
-              console.warn('Fetch failed, trying alternative method:', fetchError)
-              
-              // Alternative method: manually convert base64 to blob
-              const base64Data = capturedImage.split(',')[1]
-              if (!base64Data) {
-                throw new Error('Invalid data URL format')
-              }
-              
-              const byteCharacters = atob(base64Data)
-              const byteNumbers = new Array(byteCharacters.length)
-              for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i)
-              }
-              const byteArray = new Uint8Array(byteNumbers)
-              blob = new Blob([byteArray], { type: 'image/jpeg' })
-            }
-          }
-          
-          console.log('Blob created:', {
-            size: blob.size,
-            type: blob.type
-          })
-          
-          // Ensure we have a valid blob
-          if (blob.size === 0) {
-            throw new Error('Invalid image data - blob is empty')
-          }
-          
-          const file = new File([blob], `step-${currentStep.id}-capture.jpg`, { type: 'image/jpeg' })
-          
-          console.log('Attempting to upload image:', {
-            fileName: file.name,
-            fileSize: file.size,
-            fileType: file.type
-          })
-          
-          await uploadImage({
-            file,
-            stepId: currentStep.id,
-            imageType: 'meter_photo'
-          })
-          console.log('Image upload successful')
-        } catch (uploadError) {
-          console.error('Image processing/upload failed:', uploadError)
-          const errorMessage = uploadError instanceof Error ? uploadError.message : 'Unknown error'
-          
-          // More user-friendly error messages
-          if (errorMessage.includes('Load failed') || errorMessage.includes('Failed to fetch')) {
-            alert('Failed to process the captured image. This might be due to browser restrictions. You can continue, but the image won\'t be saved.')
-          } else {
-            alert(`Failed to upload image: ${errorMessage}. You can still continue, but the image won't be saved.`)
-          }
-          // Don't prevent progression, just log the error
-        }
-        }
+        // The validate API has already uploaded the image and saved to database
+        // We only need to update local state
+        console.log('Updating local state...')
         
         const stepData = {
           timestamp: new Date(),
           action: 'capture' as const,
-          validated: analysisResult.overall.passed,
-          validationResult: analysisResult.overall,
-          imageUploaded: true,
-          retryCount: retryCount,
-          extractedValue: analysisResult.extractedValue,
-          structuredData: analysisResult.structuredData
+          validated: analysisResult.isValid,
+          validationResult: {
+            passed: analysisResult.isValid,
+            confidence: analysisResult.confidence,
+            message: analysisResult.message
+          },
+          imageUploaded: true, // Images are always uploaded now
+          retryCount: retryCount
         }
 
         saveStepData(currentStep.id, stepData)
         
-        // Update backend - if in retake mode, don't advance step
-        if (retakeMode.isRetaking && retakeMode.returnToReview) {
-          // Just update the step data without changing step number
-          await updateCurrentStep({ 
-            step: currentStep.id, // Keep the same step number
-            stepData: {
-              [`step_${currentStep.id}`]: {
-                ...stepData,
-                extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null,
-                structuredData: ('structuredData' in analysisResult ? analysisResult.structuredData : undefined) || undefined
+        // For manual "Use Anyway" case, we need to update backend step number
+        if (!analysisResult.isValid) {
+          // Manual progression for failed validation
+          const nextStepId = getNextStepIdFromConfig(currentStep.id)
+          
+          if (retakeMode.isRetaking && retakeMode.returnToReview) {
+            // Just update the step data without changing step number
+            await updateCurrentStep({ 
+              step: currentStep.id, // Keep the same step number
+              stepData: {
+                [`step_${currentStep.id}`]: stepData
               }
-            }
-          })
-        } else {
-          // Normal flow - update backend with actual next step ID
-          const nextStepId = getNextStepId(currentStep.id)
-          await updateCurrentStep({ 
-            step: nextStepId,
-            stepData: {
-              [`step_${currentStep.id}`]: {
-                ...stepData,
-                extractedValue: ('extractedValue' in analysisResult ? analysisResult.extractedValue : null) || null,
-                structuredData: ('structuredData' in analysisResult ? analysisResult.structuredData : undefined) || undefined
+            })
+          } else {
+            // Normal flow - update backend with actual next step ID
+            await updateCurrentStep({ 
+              step: nextStepId,
+              stepData: {
+                [`step_${currentStep.id}`]: stepData
               }
-            }
-          })
+            })
+            // Update frontend state to match backend
+            setCurrentStep(nextStepId)
+          }
         }
       } else {
         console.log('Data already auto-saved, just moving to next step')
         
-        // In retake mode, don't update step number
-        if (!retakeMode.isRetaking || !retakeMode.returnToReview) {
-          // Update backend to the actual next step ID
-          const nextStepId = getNextStepId(currentStep.id)
-          await updateCurrentStep({ 
-            step: nextStepId
-          })
+        // If validation passed, backend already updated the step
+        // Calculate next step locally since we don't get it from backend anymore
+        if (analysisResult.isValid && !retakeMode.isRetaking) {
+          const nextStepId = getNextStepIdFromConfig(currentStep.id)
+          setCurrentStep(nextStepId)
         }
       }
       
@@ -698,10 +533,8 @@ export function CameraStep() {
       if (retakeMode.isRetaking && retakeMode.returnToReview) {
         // Clear retake mode and return to review
         setRetakeMode({ isRetaking: false, returnToReview: false })
-        const reviewStepNumber = Math.max(...SURVEY_STEPS.filter(step => step.stepType !== 'guide').map(step => step.id)) + 1
+        const reviewStepNumber = getReviewStepId()
         setCurrentStep(reviewStepNumber)
-      } else {
-        nextStep()
       }
     } catch (error) {
       console.error('Failed to proceed:', error)
@@ -709,13 +542,15 @@ export function CameraStep() {
       if (retakeMode.isRetaking && retakeMode.returnToReview) {
         // Clear retake mode and return to review
         setRetakeMode({ isRetaking: false, returnToReview: false })
-        const reviewStepNumber = Math.max(...SURVEY_STEPS.filter(step => step.stepType !== 'guide').map(step => step.id)) + 1
+        const reviewStepNumber = getReviewStepId()
         setCurrentStep(reviewStepNumber)
       } else {
-        nextStep()
+        // Fall back to local navigation if backend fails
+        const nextStepId = getNextStepIdFromConfig(currentStep.id)
+        setCurrentStep(nextStepId)
       }
     }
-  }, [capturedImage, analysisResult, currentStep.id, saveStepData, nextStep, retryCount, uploadImage, updateCurrentStep, surveyData.stepData, retakeMode, setRetakeMode, setCurrentStep])
+  }, [capturedImage, analysisResult, currentStep.id, saveStepData, retryCount, updateCurrentStep, surveyData.stepData, retakeMode, setRetakeMode, setCurrentStep])
 
   // Handle retaking the photo
   const handleRetake = useCallback(() => {
@@ -727,7 +562,10 @@ export function CameraStep() {
   }, [])
 
   const handleSkip = useCallback(async () => {
-    const stepData = {
+    console.log('Processing skip for step:', currentStep.id)
+    
+    // Save to local state
+    const localStepData = {
       timestamp: new Date(),
       action: 'skip' as const,
       validated: false,
@@ -735,38 +573,56 @@ export function CameraStep() {
       imageUploaded: false,
       retryCount: 0
     }
+    saveStepData(currentStep.id, localStepData)
     
-    saveStepData(currentStep.id, stepData)
+    try {
+      // Call validate API with skip flag
+      const formData = new FormData()
+      formData.append('stepNumber', currentStep.id.toString())
+      formData.append('surveyId', surveyId!)
+      formData.append('skip', 'true')
+      
+      const response = await fetch('/api/validate', {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Skip API failed: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      console.log('Skip recorded:', result)
+      
+    } catch (error) {
+      console.error('Failed to record skip:', error)
+      // Continue anyway - don't block user progress
+    }
     
     // Get the actual next step ID
-    const nextStepId = getNextStepId(currentStep.id)
+    const nextStepId = getNextStepIdFromConfig(currentStep.id)
     
     // Check if in retake mode
     if (retakeMode.isRetaking && retakeMode.returnToReview) {
-      // Just update the step data without changing step number
+      // Just update the step number without changing it
       await updateCurrentStep({ 
-        step: currentStep.id, // Keep the same step number
-        stepData: {
-          [`step_${currentStep.id}`]: stepData
-        }
+        step: currentStep.id,
       })
       
       // Clear retake mode and return to review
       setRetakeMode({ isRetaking: false, returnToReview: false })
-      const reviewStepNumber = Math.max(...SURVEY_STEPS.filter(step => step.stepType !== 'guide').map(step => step.id)) + 1
+      const reviewStepNumber = getReviewStepId()
       setCurrentStep(reviewStepNumber)
     } else {
       // Normal flow - update backend with actual next step ID
       await updateCurrentStep({ 
         step: nextStepId,
-        stepData: {
-          [`step_${currentStep.id}`]: stepData
-        }
       })
       
-      nextStep()
+      // Update frontend to match backend
+      setCurrentStep(nextStepId)
     }
-  }, [currentStep.id, currentStep.title, saveStepData, nextStep, updateCurrentStep, retakeMode, setRetakeMode, setCurrentStep])
+  }, [currentStep.id, saveStepData, updateCurrentStep, retakeMode, setRetakeMode, setCurrentStep, surveyId])
 
 
 
@@ -799,7 +655,7 @@ export function CameraStep() {
                 <div className="font-medium">AI detected: {analysisResult.extractedValue.replace(/[^0-9]/g, '')}A</div>
                 <div className="text-sm mt-1">Please confirm or correct this value below</div>
               </div>
-            ) : analysisResult && !analysisResult.overall.passed ? (
+            ) : analysisResult && !analysisResult.isValid ? (
               <div className="bg-yellow-100 text-yellow-800 px-4 py-3 rounded-lg">
                 <div className="font-medium">Unable to read amperage automatically</div>
                 <div className="text-sm mt-1">Please enter the value manually</div>
@@ -892,12 +748,12 @@ export function CameraStep() {
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary-foreground border-t-transparent"></div>
                   <span>Analyzing image...</span>
                 </div>
-              ) : analysisResult && !analysisResult.overall.passed ? (
+              ) : analysisResult && !analysisResult.isValid ? (
                 <div className="space-y-3">
                   <div className="bg-destructive text-destructive-foreground px-4 py-3 rounded-lg">
                     <div className="font-medium mb-2">Issues Found:</div>
                     <div className="text-sm">
-                      • {analysisResult.overall.message}
+                      • {analysisResult.message}
                     </div>
                   </div>
                 </div>
@@ -908,7 +764,7 @@ export function CameraStep() {
             {!isAnalyzingCapture && analysisResult && (
               <div className="absolute bottom-24 sm:bottom-4 left-4 right-4">
                 <div className="flex gap-3">
-                  {analysisResult.overall.passed ? (
+                  {analysisResult.isValid ? (
                     // Validation passed - only show Continue
                     <Button
                       onClick={handleProceed}

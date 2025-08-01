@@ -10,14 +10,14 @@ import { Badge } from '@/components/ui/badge'
 import { useSurveyBackend } from '@/hooks/use-survey-backend'
 import { ThankYou } from '@/components/thank-you'
 import { CAMERA_STEPS } from '@/config/survey-steps'
+import type { StepData } from '@/lib/database'
 
 interface SurveyDataFromBackend {
   id: string
   userId: string
   currentStep: number
   status: string
-  meterPhotos?: Record<string, unknown>
-  surveyResponses?: Record<string, unknown>
+  stepData: StepData[]
   [key: string]: unknown
 }
 
@@ -30,14 +30,24 @@ export function ReviewStep() {
   const [isLoadingImages, setIsLoadingImages] = useState(true)
   const [backendSurveyData, setBackendSurveyData] = useState<SurveyDataFromBackend | null>(null)
   const [isLoadingSurvey, setIsLoadingSurvey] = useState(true)
-  const { completeSurvey, surveyId } = useSurveyBackend()
+  const { completeSurvey, surveyId, updateCurrentStep } = useSurveyBackend()
 
-  // Fetch survey data and images from backend when component mounts
+  // Update status to UNDER_REVIEW when component mounts
   useEffect(() => {
-    async function fetchSurveyData() {
+    async function updateStatusAndFetchData() {
       if (!surveyId) return
       
       try {
+        // Update the status to UNDER_REVIEW
+        await fetch(`/api/survey/${surveyId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            currentStep: 13,
+            status: 'UNDER_REVIEW'
+          })
+        })
+        
         // Fetch complete survey data
         const surveyResponse = await fetch(`/api/survey/${surveyId}`)
         if (surveyResponse.ok) {
@@ -65,25 +75,31 @@ export function ReviewStep() {
       }
     }
 
-    fetchSurveyData()
+    updateStatusAndFetchData()
   }, [surveyId])
 
   // Helper function to check if a step is completed
   const isStepCompleted = (stepId: number): boolean => {
-    if (backendSurveyData?.surveyResponses) {
-      const stepKey = `step_${stepId}`
-      const stepData = backendSurveyData.surveyResponses[stepKey]
-      return !!stepData && typeof stepData === 'object' && 
-             ('action' in stepData || 'enteredValue' in stepData || 'validationResult' in stepData)
+    if (backendSurveyData?.stepData) {
+      const step = backendSurveyData.stepData.find(s => s.step_id === stepId.toString())
+      return !!step
+    }
+    return false
+  }
+
+  // Helper function to check if a step was skipped
+  const isStepSkipped = (stepId: number): boolean => {
+    if (backendSurveyData?.stepData) {
+      const step = backendSurveyData.stepData.find(s => s.step_id === stepId.toString())
+      return !!step && (step.photo_type === 'skipped' || step.analysis_result.ai_feedback === 'Step skipped by user')
     }
     return false
   }
 
   // Helper function to get step data
-  const getStepData = (stepId: number): Record<string, unknown> | null => {
-    if (backendSurveyData?.surveyResponses) {
-      const stepKey = `step_${stepId}`
-      return backendSurveyData.surveyResponses[stepKey] as Record<string, unknown> || null
+  const getStepData = (stepId: number): StepData | null => {
+    if (backendSurveyData?.stepData) {
+      return backendSurveyData.stepData.find(s => s.step_id === stepId.toString()) || null
     }
     return null
   }
@@ -91,18 +107,13 @@ export function ReviewStep() {
   // Helper function to get entered value for a step
   const getEnteredValue = (stepId: number): string | null => {
     const stepData = getStepData(stepId)
-    if (stepData && typeof stepData === 'object' && 'enteredValue' in stepData) {
-      return stepData.enteredValue as string
-    }
-    return null
+    return stepData?.analysis_result.extracted_value || null
   }
 
   const getStructuredData = (stepId: number): Record<string, string> | null => {
     const stepData = getStepData(stepId)
-    if (stepData && typeof stepData === 'object' && 'structuredData' in stepData) {
-      const structured = stepData.structuredData as Record<string, string>
-      // Return all keys, but we'll filter display in the UI
-      return structured || null
+    if (stepData?.analysis_result?.structured_data) {
+      return stepData.analysis_result.structured_data as Record<string, string>
     }
     return null
   }
@@ -181,10 +192,13 @@ export function ReviewStep() {
               <div className="space-y-4">
                 {CAMERA_STEPS.map((step) => {
                   const stepCompleted = isStepCompleted(step.id)
+                  const stepSkipped = isStepSkipped(step.id)
                   const data = getStepData(step.id)
                   
-                  // Find the image URL for this step
-                  const stepImageKey = Object.keys(imageUrls).find(key => key.includes(`step-${step.id}`))
+                  // Find the image URL for this step - match the actual S3 key format
+                  const stepImageKey = Object.keys(imageUrls).find(key => 
+                    key.includes(`/step_${step.id}.jpg`) || key.endsWith(`step_${step.id}.jpg`)
+                  )
                   const imageUrl = stepImageKey ? imageUrls[stepImageKey] : null
 
                   return (
@@ -201,7 +215,7 @@ export function ReviewStep() {
                                 Not Completed
                               </Badge>
                             )}
-                            {data?.action === 'skip' && (
+                            {stepSkipped && (
                               <Badge variant="secondary" className="text-xs ml-2">
                                 Skipped
                               </Badge>
@@ -214,28 +228,38 @@ export function ReviewStep() {
                       {/* Only show content if step is completed */}
                       {stepCompleted && (
                         <>
-                          {/* Data Entry Display */}
-                          {step.stepType === 'data-entry' && (
+                          {/* Show skip message for skipped steps */}
+                          {stepSkipped && (
                             <div className="mb-4 p-4 bg-muted rounded-lg">
-                              {data?.action === 'skip' ? (
-                                <p className="text-sm text-muted-foreground">No value entered (skipped)</p>
-                              ) : (
-                                <>
-                                  <p className="text-lg font-semibold">
-                                    Entered Value: {getEnteredValue(step.id) || 'No value'}
-                                  </p>
-                                  {data?.validationResult && typeof data.validationResult === 'object' && 'message' in data.validationResult && (
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                      {(data.validationResult as {message: string}).message}
-                                    </p>
-                                  )}
-                                </>
+                              <p className="text-sm text-muted-foreground">(skipped)</p>
+                            </div>
+                          )}
+
+                          {/* Data Entry Display */}
+                          {step.stepType === 'data-entry' && !stepSkipped && (
+                            <div className="mb-4 p-4 bg-muted rounded-lg">
+                              <p className="text-lg font-semibold">
+                                Entered Value: {getEnteredValue(step.id) || 'No value'}
+                              </p>
+                              {data?.analysis_result.ai_feedback && (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {data.analysis_result.ai_feedback}
+                                </p>
                               )}
                             </div>
                           )}
 
+                          {/* Extracted Value Display for camera steps */}
+                          {step.stepType === 'camera' && !stepSkipped && getEnteredValue(step.id) && (
+                            <div className="mb-4 p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+                              <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                                Extracted Value: <span className="font-mono font-bold">{getEnteredValue(step.id)}</span>
+                              </p>
+                            </div>
+                          )}
+
                           {/* Structured Data Display */}
-                          {(() => {
+                          {!stepSkipped && (() => {
                             const structuredData = getStructuredData(step.id)
                             // Filter out empty values for display only
                             const nonEmptyData = structuredData ? Object.fromEntries(
@@ -264,7 +288,7 @@ export function ReviewStep() {
                           })()}
 
                           {/* Image Preview */}
-                          {data?.imageUploaded && step.stepType !== 'data-entry' && (
+                          {data?.s3_info && !stepSkipped && step.stepType !== 'data-entry' && (
                             <div className="space-y-3">
                               {isLoadingImages ? (
                                 <div className="w-full max-w-md rounded-lg border bg-gray-100 h-64 flex items-center justify-center">
@@ -276,6 +300,7 @@ export function ReviewStep() {
                                   alt={`${step.title} photo`}
                                   className="w-full max-w-md rounded-lg border object-contain"
                                   style={{ maxHeight: '400px' }}
+                                  onError={() => console.error(`Image failed to load for step ${step.id}`)}
                                 />
                               ) : (
                                 <div className="w-full max-w-md rounded-lg border bg-gray-100 h-64 flex items-center justify-center">
@@ -290,6 +315,18 @@ export function ReviewStep() {
                                 Retake Photo
                               </Button>
                             </div>
+                          )}
+
+                          {/* For skipped camera steps, show option to take photo */}
+                          {stepSkipped && step.stepType === 'camera' && (
+                            <Button
+                              onClick={() => handleRetakePhoto(step.id)}
+                              variant="outline"
+                              size="sm"
+                              className="mt-2"
+                            >
+                              Take Photo
+                            </Button>
                           )}
 
                           {/* For data entry steps, show option to re-enter */}

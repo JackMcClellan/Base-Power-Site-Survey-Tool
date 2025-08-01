@@ -1,5 +1,8 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateEnum
-CREATE TYPE "public"."Status" AS ENUM ('in_progress', 'completed');
+CREATE TYPE "public"."Status" AS ENUM ('in_progress', 'under_review', 'completed');
 
 -- CreateTable
 CREATE TABLE "public"."surveys" (
@@ -10,14 +13,11 @@ CREATE TABLE "public"."surveys" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "completed_at" TIMESTAMP(3),
-    "meter_photos" JSONB,
-    "analysis_results" JSONB,
-    "survey_responses" JSONB,
-    "device_info" JSONB,
-    "session_metadata" JSONB,
+    "step_data" JSONB NOT NULL DEFAULT '[]',
 
     CONSTRAINT "surveys_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
 CREATE UNIQUE INDEX "surveys_user_id_key" ON "public"."surveys"("user_id");
+

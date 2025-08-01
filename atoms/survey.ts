@@ -3,13 +3,10 @@ import { SURVEY_STEPS, CAMERA_STEPS, type SurveyStep } from '@/config/survey-ste
 
 // Basic analysis result interface for immediate UI feedback
 export interface AnalysisResult {
-  overall: {
-    passed: boolean
-    confidence: number
-    message: string
-  }
-  extractedValue?: string
-  structuredData?: Record<string, string>
+  isValid: boolean
+  message: string
+  confidence: number
+  extractedValue?: string  // Optional - only present for data extraction steps
 }
 
 // Survey step state - starts at 0 for welcome page
@@ -67,7 +64,7 @@ export const surveyDataAtom = atom<{
 export const surveyStepsAtom = atom<SurveyStep[]>(CAMERA_STEPS)
 
 // Export types for components
-export type { SurveyStep, AIConfig } from '@/config/survey-steps'
+export type { SurveyStep } from '@/config/survey-steps'
 export type { StepData, ValidationResult }
 
 // Helper function to get the correct step sequence including guides
@@ -123,7 +120,7 @@ export const nextStepAtom = atom(
   (get, set) => {
     const currentStepId = get(currentStepAtom)
     const stepSequence = getStepSequence()
-    const maxStepId = Math.max(...CAMERA_STEPS.map(step => step.id)) + 1 // +1 for review step
+    const reviewStepId = 13 // Review step is always step 13
     
     // Find current step in sequence
     const currentIndex = stepSequence.indexOf(currentStepId)
@@ -132,18 +129,21 @@ export const nextStepAtom = atom(
       // Move to next step in sequence
       const nextStepId = stepSequence[currentIndex + 1]
       set(currentStepAtom, nextStepId)
-    } else if (currentStepId < maxStepId && currentIndex === -1) {
+    } else if (currentStepId < reviewStepId && currentIndex === -1) {
       // Current step not in sequence (might be 0), find the first step after it
       const nextStepId = stepSequence.find(id => id > currentStepId)
       if (nextStepId) {
         set(currentStepAtom, nextStepId)
       } else {
         // No steps after current, go to review
-        set(currentStepAtom, maxStepId)
+        set(currentStepAtom, reviewStepId)
       }
+    } else if (currentIndex === stepSequence.length - 1) {
+      // At the last step in sequence, go to review
+      set(currentStepAtom, reviewStepId)
     } else {
-      // Already at or past max step
-      set(currentStepAtom, maxStepId)
+      // Already at or past review step
+      set(currentStepAtom, reviewStepId)
     }
     // Backend sync will be handled by components using useSurveyBackend hook
   }
@@ -229,9 +229,10 @@ export const validateStepDataAtom = atom(
     }
     
     return {
-      passed: analysisResult.overall.passed,
-      confidence: analysisResult.overall.confidence,
-      message: analysisResult.overall.message
+      passed: analysisResult.isValid,
+      confidence: analysisResult.confidence,
+      message: analysisResult.message
+      
     }
   }
 ) 

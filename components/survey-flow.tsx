@@ -20,7 +20,7 @@ export function SurveyFlow() {
   // Steps 7-8: Camera steps for A/C units
   // Step 8.5: Electrical panel guide
   // Steps 9-12: Camera/data-entry steps for electrical panel
-  // Step 13+: Review page (post-survey review)
+  // Step 13: Review page (post-survey review)
   
   if (currentStepId === 0) {
     return <WelcomeStep />
@@ -47,12 +47,8 @@ export function SurveyFlow() {
     return <CameraStep />
   }
   
-  // Calculate the highest non-guide step ID
-  const nonGuideSteps = SURVEY_STEPS.filter(step => step.stepType !== 'guide')
-  const maxStepId = nonGuideSteps.length > 0 ? Math.max(...nonGuideSteps.map(step => step.id)) : 12
-  
-  // After all survey steps, show review (currentStepId > highest step ID)
-  if (currentStepId > maxStepId) {
+  // Show review step when currentStepId is 13
+  if (currentStepId === 13) {
     return <ReviewStep />
   }
   

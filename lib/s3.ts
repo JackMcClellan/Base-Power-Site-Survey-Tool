@@ -34,8 +34,13 @@ export type DownloadRequest = z.infer<typeof DownloadRequestSchema>
 
 // Generate S3 key for organized storage
 export function generateS3Key(userId: string, fileName: string, folder: 'photos' | 'processed' = 'photos'): string {
-  // Clean fileName to ensure S3 compatibility
-  const cleanFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
+  // Validate userId is a proper UUID for security
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+    throw new Error('Invalid userId format')
+  }
+  
+  // Clean fileName to ensure S3 compatibility and prevent path traversal
+  const cleanFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.\./g, '')
   return `${userId}/${folder}/${cleanFileName}`
 }
 
@@ -47,7 +52,7 @@ export async function generatePresignedUploadUrl({
   contentType,
 }: z.infer<typeof UploadRequestSchema>) {
   const s3Client = getS3Client()
-  const key = `surveys/${userId}/step-${stepId}/${Date.now()}-${fileName}`
+  const key = `${userId}/step_${stepId}.jpg`
 
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
@@ -180,7 +185,7 @@ export async function generateReviewUrls(userId: string, fileNames: string[]): P
     
     for (const fileName of fileNames) {
       // Check if fileName already contains the full S3 key path
-      const isFullKey = fileName.includes('/photos/') || fileName.includes('/processed/')
+      const isFullKey = fileName.includes('/photos/') || fileName.includes('/processed/') || fileName.includes('/step_')
       
       if (isFullKey) {
         // fileName is already a full S3 key, use it directly
@@ -213,22 +218,12 @@ export async function generateReviewUrls(userId: string, fileNames: string[]): P
 export function getUserFileNames(surveyData: Record<string, unknown>): string[] {
   const fileNames: string[] = []
   
-  // Extract file names from meterPhotos (camelCase as stored in DB)
-  if (surveyData.meterPhotos && typeof surveyData.meterPhotos === 'object') {
-    const photos = surveyData.meterPhotos as Record<string, unknown>
-    Object.values(photos).forEach(photo => {
-      if (typeof photo === 'object' && photo !== null && 'fileName' in photo) {
-        fileNames.push(photo.fileName as string)
-      }
-    })
-  }
-  
-  // Also check meter_photos for backward compatibility
-  if (surveyData.meter_photos && typeof surveyData.meter_photos === 'object') {
-    const photos = surveyData.meter_photos as Record<string, unknown>
-    Object.values(photos).forEach(photo => {
-      if (typeof photo === 'object' && photo !== null && 'fileName' in photo) {
-        fileNames.push(photo.fileName as string)
+  // Extract file names from stepData array
+  if (surveyData.stepData && Array.isArray(surveyData.stepData)) {
+    const steps = surveyData.stepData as Array<{s3_info: string}>
+    steps.forEach(step => {
+      if (step.s3_info) {
+        fileNames.push(step.s3_info)
       }
     })
   }

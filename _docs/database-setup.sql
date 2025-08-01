@@ -1,37 +1,36 @@
--- Database setup for Base Power Site Survey Tool
--- PostgreSQL schema for survey data persistence
+-- Base Power Survey Database Setup
+-- PostgreSQL database initialization script
+-- Consolidated Schema - February 2025
+
+-- Create schema if not exists
+CREATE SCHEMA IF NOT EXISTS "public";
+
+-- Create enum for survey status
+CREATE TYPE "public"."Status" AS ENUM ('in_progress', 'under_review', 'completed');
 
 -- Create surveys table
-CREATE TABLE IF NOT EXISTS surveys (
-    id SERIAL PRIMARY KEY,
-    user_id UUID NOT NULL UNIQUE,
-    current_step INTEGER DEFAULT 0,
-    status VARCHAR(20) DEFAULT 'in_progress',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP NULL,
-    
-    -- Survey data fields (stored as JSONB for flexibility)
-    meter_photos JSONB,
-    analysis_results JSONB,
-    survey_responses JSONB,
-    
-    -- Metadata fields
-    device_info JSONB,
-    session_metadata JSONB,
-    
-    -- Constraints
-    CONSTRAINT valid_status CHECK (status IN ('in_progress', 'completed')),
-    CONSTRAINT valid_step CHECK (current_step >= 0)
+CREATE TABLE "public"."surveys" (
+    "id" SERIAL NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "current_step" INTEGER NOT NULL DEFAULT 0,
+    "status" "public"."Status" NOT NULL DEFAULT 'in_progress',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "completed_at" TIMESTAMP(3),
+    "step_data" JSONB NOT NULL DEFAULT '[]',
+
+    CONSTRAINT "surveys_pkey" PRIMARY KEY ("id")
 );
 
--- Create indexes for performance
-CREATE INDEX IF NOT EXISTS idx_surveys_user_id ON surveys(user_id);
-CREATE INDEX IF NOT EXISTS idx_surveys_status ON surveys(status);
-CREATE INDEX IF NOT EXISTS idx_surveys_created_at ON surveys(created_at);
-CREATE INDEX IF NOT EXISTS idx_surveys_updated_at ON surveys(updated_at);
+-- Create unique index on user_id
+CREATE UNIQUE INDEX "surveys_user_id_key" ON "public"."surveys"("user_id");
 
--- Create updated_at trigger function
+-- Create additional indexes for better performance
+CREATE INDEX idx_surveys_status ON surveys(status);
+CREATE INDEX idx_surveys_created_at ON surveys(created_at);
+CREATE INDEX idx_surveys_updated_at ON surveys(updated_at);
+
+-- Create updated_at trigger function (for Prisma compatibility)
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -47,38 +46,65 @@ CREATE TRIGGER update_surveys_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- Sample data for testing (optional)
--- INSERT INTO surveys (user_id, current_step, status) 
--- VALUES ('123e4567-e89b-12d3-a456-426614174000', 0, 'in_progress');
+-- Grant permissions (adjust as needed for your database user)
+-- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_app_user;
+-- GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO your_app_user;
+-- GRANT USAGE ON TYPE "public"."Status" TO your_app_user;
 
--- Check the table structure
--- \d surveys;
-
--- Verify indexes
--- \di surveys*;
+-- Verify table structure
+-- SELECT 
+--     table_name,
+--     column_name,
+--     data_type,
+--     is_nullable,
+--     column_default
+-- FROM 
+--     information_schema.columns
+-- WHERE 
+--     table_schema = 'public' 
+--     AND table_name = 'surveys'
+-- ORDER BY 
+--     ordinal_position;
 
 -- Example queries for development/testing:
 
 -- Get survey by user ID
 -- SELECT * FROM surveys WHERE user_id = '123e4567-e89b-12d3-a456-426614174000';
 
--- Update survey step
--- UPDATE surveys SET current_step = 1 WHERE user_id = '123e4567-e89b-12d3-a456-426614174000';
+-- Create a new survey
+-- INSERT INTO surveys (user_id, current_step, status) 
+-- VALUES ('123e4567-e89b-12d3-a456-426614174000', 0, 'in_progress');
 
--- Update survey data
+-- Update survey to under review
 -- UPDATE surveys SET 
---   meter_photos = '{"step1": {"fileName": "meter-001.jpg", "uploadedAt": "2024-01-01T00:00:00Z"}}',
---   analysis_results = '{"step1": {"passed": true, "confidence": 0.95}}'
+--   current_step = 13,
+--   status = 'under_review'
+-- WHERE user_id = '123e4567-e89b-12d3-a456-426614174000';
+
+-- Update survey step data
+-- UPDATE surveys SET 
+--   step_data = '[
+--     {
+--       "step_id": "1",
+--       "photo_type": "meter_closeup",
+--       "s3_info": "uploads/123e4567/step_1.jpg",
+--       "analysis_result": {
+--         "confidence": 0.95,
+--         "is_valid": true,
+--         "extracted_value": "200A",
+--         "ai_feedback": "Successfully captured meter image"
+--       }
+--     }
+--   ]'::jsonb
 -- WHERE user_id = '123e4567-e89b-12d3-a456-426614174000';
 
 -- Mark survey as completed
 -- UPDATE surveys SET 
 --   status = 'completed',
---   current_step = 99,
 --   completed_at = CURRENT_TIMESTAMP
 -- WHERE user_id = '123e4567-e89b-12d3-a456-426614174000';
 
--- Get survey statistics
+-- Get survey statistics by status
 -- SELECT 
 --   status,
 --   COUNT(*) as count,
@@ -86,4 +112,15 @@ CREATE TRIGGER update_surveys_updated_at
 --   MIN(created_at) as first_survey,
 --   MAX(updated_at) as last_activity
 -- FROM surveys 
--- GROUP BY status; 
+-- GROUP BY status;
+
+-- Get surveys in review
+-- SELECT 
+--   user_id,
+--   current_step,
+--   created_at,
+--   updated_at,
+--   jsonb_array_length(step_data) as completed_steps
+-- FROM surveys 
+-- WHERE status = 'under_review'
+-- ORDER BY updated_at DESC; 

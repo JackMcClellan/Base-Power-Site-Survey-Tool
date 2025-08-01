@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { surveyIdAtom, setSyncingAtom } from '@/atoms/survey'
+import { type StepData } from '@/lib/database'
 
 interface UploadImageOptions {
   file: File
@@ -79,7 +80,7 @@ export function useSurveyBackend() {
         body: JSON.stringify({
           userId: surveyId,
           stepId: stepId,
-          fileName: `step-${stepId}-${imageType}-${Date.now()}.jpg`,
+          fileName: `step_${stepId}.jpg`,
           contentType: file.type,
         }),
       })
@@ -124,20 +125,63 @@ export function useSurveyBackend() {
 
       console.log('Successfully uploaded to S3, updating survey...')
 
-      // Step 3: Update survey with file reference
-      const updateData: Record<string, unknown> = {}
-      updateData.meterPhotos = {
-        [`step_${stepId}`]: {
-          fileName: key,
-          uploadedAt: new Date().toISOString(),
-        },
+      // Get existing survey data
+      const surveyResponse = await fetch(`/api/survey/${surveyId}`)
+      if (!surveyResponse.ok) {
+        throw new Error('Failed to get survey data')
+      }
+      
+      const surveyData = await surveyResponse.json()
+      const existingSteps = (surveyData.data?.stepData || []) as StepData[]
+      
+      // Find and update existing step or add new one
+      const stepIndex = existingSteps.findIndex(s => s.step_id === stepId.toString())
+      
+      // Step 3: Create step data in the new format
+      let analysisResult = {
+        confidence: 0,
+        is_valid: false,
+        extracted_value: '',
+        structured_data: {},
+        ai_feedback: 'Pending validation'
+      }
+      
+      // Preserve existing analysis_result if it exists
+      if (stepIndex >= 0 && existingSteps[stepIndex].analysis_result) {
+        analysisResult = {
+          ...analysisResult,
+          ...existingSteps[stepIndex].analysis_result
+        }
+        console.log('Preserving existing analysis result:', analysisResult)
+      }
+      
+      const stepData: StepData = {
+        step_id: stepId.toString(),
+        photo_type: imageType === 'meter_photo' ? 'meter_closeup' : 'analysis_result',
+        s3_info: key,
+        analysis_result: analysisResult
+      }
+      
+      if (stepIndex >= 0) {
+        // Merge with existing step data, preserving analysis_result
+        existingSteps[stepIndex] = {
+          ...existingSteps[stepIndex],
+          ...stepData,
+          analysis_result: existingSteps[stepIndex].analysis_result || stepData.analysis_result
+        }
+      } else {
+        existingSteps.push(stepData)
       }
 
+      // Sort steps by step_id
+      existingSteps.sort((a, b) => parseFloat(a.step_id) - parseFloat(b.step_id))
+
+      // Update survey with new step data
       await fetch(`/api/survey/${surveyId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          meterPhotos: updateData.meterPhotos,
+          stepData: existingSteps,
         }),
       })
 
@@ -238,4 +282,4 @@ export function useSurveyBackend() {
     saveSurveyData,
     surveyId,
   }
-} 
+}

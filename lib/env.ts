@@ -57,7 +57,6 @@ export const env = {
   S3_BUCKET_NAME: requiredEnvVars.S3_BUCKET_NAME!,
   OPENAI_API_KEY: requiredEnvVars.OPENAI_API_KEY!,
   NEXT_PUBLIC_APP_URL: optionalEnvVars.NEXT_PUBLIC_APP_URL || '',
-  NODE_ENV: process.env.NODE_ENV || 'development',
 } as const
 
 // Type for environment variables

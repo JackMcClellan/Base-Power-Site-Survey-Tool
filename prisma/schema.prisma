@@ -20,14 +20,14 @@ model Survey {
   updatedAt   DateTime @updatedAt @map("updated_at")
   completedAt DateTime? @map("completed_at")
   
-  // JSON fields for flexible data storage
-  meterPhotos     Json? @map("meter_photos")
-  surveyResponses Json? @map("survey_responses")
+  // Single JSON field to store all step data
+  stepData    Json     @default("[]") @map("step_data")
 
   @@map("surveys")
 }
 
 enum Status {
-  IN_PROGRESS @map("in_progress")
-  COMPLETED   @map("completed")
+  IN_PROGRESS  @map("in_progress")
+  UNDER_REVIEW @map("under_review")
+  COMPLETED    @map("completed")
 }
