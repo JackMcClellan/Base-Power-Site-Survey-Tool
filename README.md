@@ -236,6 +236,7 @@ After completing the AWS setup, you'll need these environment variables:
 POST /api/survey          # Create new survey
 GET  /api/survey/[uuid]   # Get survey data
 PUT  /api/survey/[uuid]   # Update survey progress
+GET  /api/surveys         # List surveys with optional filtering
 ```
 
 ### Photo Upload & Validation
@@ -248,6 +249,64 @@ GET  /api/images/[uuid]     # Get presigned download URLs
 ### Health Check
 ```http
 GET /api/health            # Application health status
+```
+
+### Survey List Endpoint
+
+**GET /api/surveys**
+
+Retrieves all surveys with optional filtering by ID and status. Returns survey data including photos with presigned URLs.
+
+Query Parameters:
+- `id` (optional): Filter by survey UUID
+- `status` (optional): Filter by status (IN_PROGRESS, UNDER_REVIEW, COMPLETED)
+
+Response Fields:
+- `survey_id`: The unique survey identifier (UUID)
+- `start_timestamp`: When the survey was created
+- `completion_timestamp`: When the survey was completed (null if not completed)
+- `last_updated_timestamp`: When the survey was last modified
+- `status`: Current survey status (lowercase)
+- `photos`: Array of photo data, where each photo contains:
+  - `step_number`: The survey step number
+  - `s3_url`: Direct S3 URL to the photo
+  - `presignedUrl`: Temporary secure access URL
+  - `urlExpiresIn`: URL expiration time in seconds
+  - `analysis_result`: AI validation results including:
+    - `isValid`: Whether the photo passed validation
+    - `confidence`: Validation confidence score
+    - `ai_feedback`: AI-generated feedback message
+    - `extractedValue`: Extracted data (e.g., "200A" for amperage)
+    - `structuredData`: Additional structured data from AI analysis
+
+Example Response:
+```json
+{
+  "surveys": [
+    {
+      "survey_id": "123e4567-e89b-12d3-a456-426614174000",
+      "start_timestamp": "2024-01-01T00:00:00.000Z",
+      "completion_timestamp": "2024-01-01T01:00:00.000Z",
+      "last_updated_timestamp": "2024-01-01T01:00:00.000Z",
+      "status": "completed",
+      "photos": [
+        {
+          "step_number": "1",
+          "s3_url": "https://bucket.s3.region.amazonaws.com/path/to/photo.jpg",
+          "presignedUrl": "https://bucket.s3.region.amazonaws.com/path/to/photo.jpg?X-Amz-Signature=...",
+          "urlExpiresIn": 3600,
+          "analysis_result": {
+            "isValid": true,
+            "confidence": 0.95,
+            "ai_feedback": "Clear meter reading visible",
+            "extractedValue": "200A",
+            "structuredData": {}
+          }
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ## Testing
@@ -271,13 +330,6 @@ Camera access requires HTTPS on mobile devices. Use one of these methods:
    ```bash
    npm run dev
    ngrok http 3000
-   ```
-
-2. **mkcert** for local HTTPS
-   ```bash
-   brew install mkcert
-   mkcert -install
-   mkcert localhost
-   ```
+   ````
 
 [Back to top](#base-power-site-survey-tool)
