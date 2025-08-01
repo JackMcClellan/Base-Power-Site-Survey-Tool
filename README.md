@@ -228,6 +228,7 @@ After completing the AWS setup, you'll need these environment variables:
 | `APP_AWS_SECRET_ACCESS_KEY` | AWS IAM secret key | `xyz123...` |
 | `S3_BUCKET_NAME` | S3 bucket for photo storage | `basepower-survey-images` |
 | `OPENAI_API_KEY` | OpenAI API key for validation | `sk-proj-...` |
+| `X_API_KEY` | API key for surveys endpoint (optional) | `your-secure-api-key` |
 
 ## API Endpoints
 
@@ -257,6 +258,9 @@ GET /api/health            # Application health status
 
 Retrieves all surveys with optional filtering by ID and status. Returns survey data including photos with presigned URLs.
 
+**Authentication Required:**
+- Header: `x-api-key: your-api-key`
+
 Query Parameters:
 - `id` (optional): Filter by survey UUID
 - `status` (optional): Filter by status (IN_PROGRESS, UNDER_REVIEW, COMPLETED)
@@ -278,6 +282,18 @@ Response Fields:
     - `ai_feedback`: AI-generated feedback message
     - `extractedValue`: Extracted data (e.g., "200A" for amperage)
     - `structuredData`: Additional structured data from AI analysis
+
+Example Usage:
+```bash
+# Get all surveys
+curl -H "x-api-key: your-api-key" http://localhost:3000/api/surveys
+
+# Get completed surveys only  
+curl -H "x-api-key: your-api-key" "http://localhost:3000/api/surveys?status=COMPLETED"
+
+# Get specific survey
+curl -H "x-api-key: your-api-key" "http://localhost:3000/api/surveys?id=123e4567-e89b-12d3-a456-426614174000"
+```
 
 Example Response:
 ```json

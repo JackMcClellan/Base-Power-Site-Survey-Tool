@@ -7,6 +7,9 @@
 const requiredEnvVars = {
   // Database
   DATABASE_URL: process.env.DATABASE_URL,
+
+  // API Key
+  X_API_KEY: process.env.X_API_KEY,
   
   // AWS Configuration (renamed to avoid AWS_ prefix restriction in Amplify)
   APP_AWS_REGION: process.env.APP_AWS_REGION,
@@ -57,6 +60,7 @@ export const env = {
   S3_BUCKET_NAME: requiredEnvVars.S3_BUCKET_NAME!,
   OPENAI_API_KEY: requiredEnvVars.OPENAI_API_KEY!,
   NEXT_PUBLIC_APP_URL: optionalEnvVars.NEXT_PUBLIC_APP_URL || '',
+  X_API_KEY: requiredEnvVars.X_API_KEY!,
 } as const
 
 // Type for environment variables

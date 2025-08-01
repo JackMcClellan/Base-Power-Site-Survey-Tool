@@ -14,6 +14,21 @@ const QueryParamsSchema = z.object({
 // GET /api/surveys - Retrieve surveys with optional filtering
 export async function GET(request: NextRequest) {
   try {
+    // Validate API key
+    const apiKey = request.headers.get('x-api-key')
+    if (!env.X_API_KEY) {
+      return NextResponse.json(
+        { error: 'X API key not configured' },
+        { status: 500 }
+      )
+    }
+    if (!apiKey || apiKey !== env.X_API_KEY) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Invalid or missing X API key' },
+        { status: 401 }
+      )
+    }
+
     // Parse query parameters
     const searchParams = request.nextUrl.searchParams
     const queryParams = {
