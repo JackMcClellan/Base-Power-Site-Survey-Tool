@@ -142,6 +142,18 @@ The application will be available at `http://localhost:3000` (or `https://localh
 | `npm run start` | Start production server |
 | `npm run lint` | Run ESLint with Next.js rules |
 
+## Development-only Route: `/user-test`
+
+This repository includes a convenience route for local development and QA:
+
+- **Path**: `/user-test`
+- **File**: `app/user-test/page.tsx`
+- **Behavior**: Automatically generates a new UUID using `crypto.randomUUID()` and immediately redirects to `/survey/:uuid`.
+- **Purpose**: Quickly spin up a fresh survey session without manually creating a UUID.
+- **Production note**: This route is for testing only and should not be shipped. Remove the `app/user-test` directory (or guard it behind a feature flag/environment check) before deploying to production.
+
+Example: Visiting `/user-test` will redirect to something like `/survey/123e4567-e89b-12d3-a456-426614174000`.
+
 ## Security & Compliance
 
 - **HTTPS Required** - Camera access enforced over secure connections only
